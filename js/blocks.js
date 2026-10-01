@@ -16,6 +16,7 @@ const BLOCK_GLASS = 9;
 const BLOCK_PLANKS = 10;
 const BLOCK_BRICKS = 11;
 const BLOCK_WATER = 12;
+const BLOCK_CRAFTING_TABLE = 13;
 
 // Pseudo-ruído determinístico para geração de texturas procedurais
 function pseudoNoise(x, y, seed = 1) {
@@ -252,22 +253,92 @@ const tileWater = drawTile((ctx) => {
   }
 });
 
-// Lista ordenada de tiles do atlas
+// Tile 14: Bancada Lateral (Crafting Table Side)
+const tileCraftingTableSide = drawTile((ctx) => {
+  // Base de tábuas de carvalho
+  const plankColors = ['#b88a53', '#ab7d47', '#c4955d', '#9e733e'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      const n = pseudoNoise(x, y, 188);
+      ctx.fillStyle = plankColors[Math.floor(n * plankColors.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  // Borda escura reforçada
+  ctx.fillStyle = '#614322';
+  ctx.fillRect(0, 0, 16, 2);
+  ctx.fillRect(0, 14, 16, 2);
+  ctx.fillRect(0, 0, 2, 16);
+  ctx.fillRect(14, 0, 2, 16);
+
+  // Silhueta de ferramentas penduradas (serrote e tesoura / martelo)
+  // Serrote à esquerda
+  ctx.fillStyle = '#8c8f92';
+  ctx.fillRect(4, 5, 2, 7);
+  ctx.fillRect(3, 7, 1, 4);
+  ctx.fillStyle = '#5c3917'; // cabo
+  ctx.fillRect(4, 3, 2, 2);
+
+  // Martelo à direita
+  ctx.fillStyle = '#5c3917'; // cabo
+  ctx.fillRect(10, 5, 2, 7);
+  ctx.fillStyle = '#727578'; // cabeça de pedra/ferro
+  ctx.fillRect(9, 4, 4, 3);
+});
+
+// Tile 15: Bancada Topo (Crafting Table Top - Grade 3x3 e detalhes)
+const tileCraftingTableTop = drawTile((ctx) => {
+  // Base de madeira
+  const woodColors = ['#9e733e', '#ab7d47', '#b88a53'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      const n = pseudoNoise(x, y, 199);
+      ctx.fillStyle = woodColors[Math.floor(n * woodColors.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  // Borda reforçada
+  ctx.fillStyle = '#614322';
+  ctx.fillRect(0, 0, 16, 1);
+  ctx.fillRect(0, 15, 16, 1);
+  ctx.fillRect(0, 0, 1, 16);
+  ctx.fillRect(15, 0, 1, 16);
+
+  // Grade de 3x3 central
+  ctx.fillStyle = '#503519';
+  // Linhas verticais da grade
+  ctx.fillRect(6, 2, 1, 12);
+  ctx.fillRect(10, 2, 1, 12);
+  // Linhas horizontais da grade
+  ctx.fillRect(2, 6, 12, 1);
+  ctx.fillRect(2, 10, 12, 1);
+
+  // Marcas nos cantos
+  ctx.fillStyle = '#d4a373';
+  ctx.fillRect(3, 3, 2, 2);
+  ctx.fillRect(12, 3, 2, 2);
+  ctx.fillRect(3, 12, 2, 2);
+  ctx.fillRect(12, 12, 2, 2);
+});
+
+// Lista ordenada de tiles do atlas (0 a 15, preenchendo o atlas 4x4)
 const ALL_TILES = [
-  tileGrassTop,   // 0
-  tileGrassSide,  // 1
-  tileDirt,       // 2
-  tileStone,      // 3
-  tileSand,       // 4
-  tileWoodSide,   // 5
-  tileWoodTop,    // 6
-  tileLeaves,     // 7
-  tileCoalOre,    // 8
-  tileIronOre,    // 9
-  tileGlass,      // 10
-  tilePlanks,     // 11
-  tileBricks,     // 12
-  tileWater       // 13
+  tileGrassTop,           // 0
+  tileGrassSide,          // 1
+  tileDirt,               // 2
+  tileStone,              // 3
+  tileSand,               // 4
+  tileWoodSide,           // 5
+  tileWoodTop,            // 6
+  tileLeaves,             // 7
+  tileCoalOre,            // 8
+  tileIronOre,            // 9
+  tileGlass,              // 10
+  tilePlanks,             // 11
+  tileBricks,             // 12
+  tileWater,              // 13
+  tileCraftingTableSide,  // 14
+  tileCraftingTableTop    // 15
 ];
 
 // Monta o Texture Atlas em um Canvas 4x4 (64x64 pixels)
@@ -320,6 +391,7 @@ const BLOCK_TYPES = {
     transparent: true,
     isLiquid: false,
     breakable: false,
+    hardness: 0,
     dropItem: null,
     tiles: [0, 0, 0, 0, 0, 0]
   },
@@ -330,6 +402,8 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
+    hardness: 0.6,
+    preferredTool: 'shovel',
     dropItem: BLOCK_DIRT, // Quebrar grama dropa terra (como no Minecraft)
     tiles: [1, 1, 0, 2, 1, 1], // [Lado, Lado, Topo, Baixo, Lado, Lado]
     iconTile: 1
@@ -341,6 +415,8 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
+    hardness: 0.6,
+    preferredTool: 'shovel',
     dropItem: BLOCK_DIRT,
     tiles: [2, 2, 2, 2, 2, 2],
     iconTile: 2
@@ -352,6 +428,9 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
+    hardness: 2.2,
+    preferredTool: 'pickaxe',
+    requiredHarvestLevel: 1, // Exige picareta (madeira ou superior) para dropar
     dropItem: BLOCK_STONE,
     tiles: [3, 3, 3, 3, 3, 3],
     iconTile: 3
@@ -363,6 +442,8 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
+    hardness: 2.0,
+    preferredTool: 'axe',
     dropItem: BLOCK_WOOD,
     tiles: [5, 5, 6, 6, 5, 5], // Lados com casca, topo/baixo com anéis
     iconTile: 5
@@ -374,7 +455,9 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
-    dropItem: BLOCK_LEAVES,
+    hardness: 0.25,
+    preferredTool: null,
+    dropItem: BLOCK_LEAVES, // mineração pode dar graveto por sorteio em mining.js
     tiles: [7, 7, 7, 7, 7, 7],
     iconTile: 7
   },
@@ -385,6 +468,8 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
+    hardness: 0.5,
+    preferredTool: 'shovel',
     dropItem: BLOCK_SAND,
     tiles: [4, 4, 4, 4, 4, 4],
     iconTile: 4
@@ -396,7 +481,10 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
-    dropItem: BLOCK_COAL_ORE,
+    hardness: 3.0,
+    preferredTool: 'pickaxe',
+    requiredHarvestLevel: 1, // Exige picareta (madeira ou superior)
+    dropItem: null, // tratado em mining.js para dropar ITEM_COAL
     tiles: [8, 8, 8, 8, 8, 8],
     iconTile: 8
   },
@@ -407,6 +495,9 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
+    hardness: 3.5,
+    preferredTool: 'pickaxe',
+    requiredHarvestLevel: 2, // Exige picareta de pedra ou ferro
     dropItem: BLOCK_IRON_ORE,
     tiles: [9, 9, 9, 9, 9, 9],
     iconTile: 9
@@ -418,6 +509,8 @@ const BLOCK_TYPES = {
     transparent: true,
     isLiquid: false,
     breakable: true,
+    hardness: 0.35,
+    preferredTool: null,
     dropItem: BLOCK_GLASS,
     tiles: [10, 10, 10, 10, 10, 10],
     iconTile: 10
@@ -429,6 +522,8 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
+    hardness: 1.8,
+    preferredTool: 'axe',
     dropItem: BLOCK_PLANKS,
     tiles: [11, 11, 11, 11, 11, 11],
     iconTile: 11
@@ -440,6 +535,9 @@ const BLOCK_TYPES = {
     transparent: false,
     isLiquid: false,
     breakable: true,
+    hardness: 2.5,
+    preferredTool: 'pickaxe',
+    requiredHarvestLevel: 1,
     dropItem: BLOCK_BRICKS,
     tiles: [12, 12, 12, 12, 12, 12],
     iconTile: 12
@@ -451,19 +549,46 @@ const BLOCK_TYPES = {
     transparent: true,
     isLiquid: true,
     breakable: false,
+    hardness: 0,
     dropItem: null,
     tiles: [13, 13, 13, 13, 13, 13],
     iconTile: 13
+  },
+  [BLOCK_CRAFTING_TABLE]: {
+    id: BLOCK_CRAFTING_TABLE,
+    name: 'Bancada de Trabalho',
+    solid: true,
+    transparent: false,
+    isLiquid: false,
+    breakable: true,
+    hardness: 2.2,
+    preferredTool: 'axe',
+    dropItem: BLOCK_CRAFTING_TABLE,
+    // [ +X: Lado(14), -X: Lado(14), +Y: Topo(15), -Y: Fundo Tábuas(11), +Z: Lado(14), -Z: Lado(14) ]
+    tiles: [14, 14, 15, 11, 14, 14],
+    iconTile: 15
   }
 };
 
 // Cache de DataURLs para renderizar ícones na UI rapidamente
 const BLOCK_ICON_CACHE = {};
 
-function getBlockIconDataUrl(blockId) {
-  if (BLOCK_ICON_CACHE[blockId]) return BLOCK_ICON_CACHE[blockId];
+function getBlockIconDataUrl(id) {
+  if (id === undefined || id === null) return '';
 
-  const def = BLOCK_TYPES[blockId];
+  // Se for item (ID >= 100), busca no gerador de itens
+  if (id >= 100) {
+    if (typeof getItemIconDataUrl === 'function') {
+      return getItemIconDataUrl(id);
+    }
+    if (window.getItemIconDataUrl) {
+      return window.getItemIconDataUrl(id);
+    }
+  }
+
+  if (BLOCK_ICON_CACHE[id]) return BLOCK_ICON_CACHE[id];
+
+  const def = BLOCK_TYPES[id];
   if (!def || def.iconTile === undefined) return '';
 
   const tileIdx = def.iconTile;

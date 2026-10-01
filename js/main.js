@@ -7,8 +7,9 @@ class Game {
     window.game = this;
     this.clock = new THREE.Clock();
 
-    // Estado do jogo: 'MENU', 'PLAYING', 'PAUSED', 'INVENTORY'
+    // Estado do jogo: 'MENU', 'PLAYING', 'PAUSED', 'INVENTORY', 'CRAFTING_TABLE', 'DEAD'
     this.state = 'MENU';
+    this.gameMode = 'survival'; // 'survival' ou 'creative'
 
     this.world = null;
 
@@ -21,8 +22,11 @@ class Game {
 
     // 3. Inicializa os subsistemas modulares
     this.inventory = new Inventory();
+    this.crafting = new CraftingController(this);
+    this.mining = new MiningSystem(this);
     this.physics = new Physics();
     this.player = new Player(this.camera, null, this.physics, this.scene, this.inventory);
+    this.health = new HealthSystem(this);
     this.worldManager = new WorldManager(this);
     this.ui = new UI(this);
     this.input = new Input(this);
@@ -113,6 +117,27 @@ class Game {
 
   // Fecha o inventário e retorna ao jogo
   closeInventory() {
+    if (this.crafting) {
+      this.crafting.returnGridItems(false);
+    }
+    if (this.inventory) {
+      this.inventory.returnCursorItem();
+    }
+    this.enterGame();
+  }
+
+  // Abre a tela da Bancada de Trabalho 3x3
+  openCraftingTable() {
+    this.state = 'CRAFTING_TABLE';
+    this.input.exitPointerLock();
+    this.ui.showCraftingTable();
+  }
+
+  // Fecha a Bancada de Trabalho e retorna ao jogo
+  closeCraftingTable() {
+    if (this.crafting) {
+      this.crafting.returnGridItems(true);
+    }
     if (this.inventory) {
       this.inventory.returnCursorItem();
     }
@@ -134,6 +159,17 @@ class Game {
 
     if (this.state === 'PLAYING' && this.world) {
       this.player.update(dt, this.input.keys);
+
+      // Atualiza mineração progressiva
+      if (this.mining) {
+        this.mining.update(dt);
+      }
+
+      // Atualiza saúde e dano de queda
+      if (this.health) {
+        this.health.update(dt);
+      }
+
       this.ui.update();
     }
 

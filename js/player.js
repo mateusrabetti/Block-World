@@ -67,8 +67,12 @@ class Player {
     this.camera.rotation.z = 0;
   }
 
-  // Alterna o modo de voo (ativado por duplo toque no Espaço)
+  // Alterna o modo de voo (apenas disponível no Modo Criativo)
   toggleFlight() {
+    if (window.game && window.game.gameMode !== 'creative') {
+      this.isFlying = false;
+      return;
+    }
     this.isFlying = !this.isFlying;
     this.velocity.y = 0;
     this.playSound('fly');
@@ -340,21 +344,36 @@ class Player {
     this.world.setBlock(x, y, z, BLOCK_AIR);
     this.playSound('break');
 
-    // Adiciona o item correspondente ao inventário do jogador
-    if (def.dropItem !== null && def.dropItem !== undefined) {
-      this.inventory.addItem(def.dropItem, 1);
+    // No modo Sobrevivência, utiliza a regra de drops; no Criativo, não é necessário coletar
+    if (window.game && window.game.gameMode === 'survival') {
+      if (window.game.mining) {
+        window.game.mining.handleDrops(blockType, def);
+      } else if (def.dropItem !== null && def.dropItem !== undefined) {
+        this.inventory.addItem(def.dropItem, 1);
+      }
     }
 
     this.updateTargetBlock();
   }
 
-  // Ação de Colocar Bloco (Clique Direito)
+  // Ação de Colocar Bloco ou Interagir (Clique Direito)
   placeBlock() {
     if (!this.targetBlock) return;
 
-    // Obtém o bloco atualmente selecionado na Hotbar
+    // 1. Interação com a Bancada de Trabalho: abre a grade 3x3 de crafting
+    if (this.targetBlock.type === BLOCK_CRAFTING_TABLE) {
+      if (window.game && typeof window.game.openCraftingTable === 'function') {
+        window.game.openCraftingTable();
+        return;
+      }
+    }
+
+    // 2. Obtém o item atualmente selecionado na Hotbar
     const hotbarItem = this.inventory.getSelectedHotbarItem();
     if (!hotbarItem || hotbarItem.count <= 0) return;
+
+    // Itens (ferramentas, gravetos, lingotes, etc.) não são blocos colocáveis
+    if (isItem(hotbarItem.id)) return;
 
     const target = this.targetBlock.block;
     const normal = this.targetBlock.normal;
@@ -363,20 +382,22 @@ class Player {
     const placeY = target.y + normal.y;
     const placeZ = target.z + normal.z;
 
-    // 1. Limites do mundo
+    // 3. Limites do mundo
     if (!this.world.inBounds(placeX, placeY, placeZ)) return;
 
-    // 2. Não sobrepor o corpo do jogador
+    // 4. Não sobrepor o corpo do jogador
     if (this.physics.overlapsPlayer(placeX, placeY, placeZ, this.position)) {
       return;
     }
 
-    // 3. Posiciona o bloco no mundo
+    // 5. Posiciona o bloco no mundo
     const placed = this.world.setBlock(placeX, placeY, placeZ, hotbarItem.id);
     if (placed) {
       this.playSound('place');
-      // 4. Consome 1 unidade do inventário
-      this.inventory.consumeSelectedItem();
+      // 6. Consome 1 unidade apenas no modo Sobrevivência (modo Criativo tem blocos infinitos)
+      if (window.game && window.game.gameMode !== 'creative') {
+        this.inventory.consumeSelectedItem();
+      }
       this.updateTargetBlock();
     }
   }

@@ -733,3 +733,282 @@ html, body {
   visibility: visible;
   transform: translateX(-50%) translateY(0);
 }
+
+/* =============================================================================
+   EFEITO DE DANO NA TELA (VINHETA VERMELHA)
+   ============================================================================= */
+.damage-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.damage-overlay.damage-flash {
+  animation: damageFlashAnim 0.4s ease-out forwards;
+}
+
+@keyframes damageFlashAnim {
+  0% {
+    opacity: 1;
+    background: rgba(220, 38, 38, 0.25);
+    box-shadow: inset 0 0 100px rgba(220, 38, 38, 0.85);
+  }
+  100% {
+    opacity: 0;
+    background: rgba(220, 38, 38, 0);
+    box-shadow: inset 0 0 0 rgba(220, 38, 38, 0);
+  }
+}
+
+/* =============================================================================
+   CORAÇÕES DE VIDA (HUD SOBREVIVÊNCIA)
+   ============================================================================= */
+.hud-hearts {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+.hud-heart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease;
+}
+
+/* =============================================================================
+   BARRA DE PROGRESSO DE MINERAÇÃO
+   ============================================================================= */
+.mining-progress-container {
+  position: fixed;
+  top: calc(50% + 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 6px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.mining-progress-label {
+  font-size: 0.68rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fbbf24;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.mining-progress-track {
+  width: 110px;
+  height: 7px;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mining-progress-bar {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  border-radius: 3px;
+  transition: width 0.05s linear;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+
+/* =============================================================================
+   BARRA DE DURABILIDADE NOS SLOTS
+   ============================================================================= */
+.slot-durability-track {
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.slot-durability-fill {
+  width: 100%;
+  height: 100%;
+  background-color: #22c55e;
+  border-radius: 2px;
+  transition: width 0.15s ease, background-color 0.15s ease;
+}
+
+/* =============================================================================
+   SELETOR DE MODO DE JOGO (CRIAR MUNDO)
+   ============================================================================= */
+.mode-select-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.btn-mode-select {
+  flex: 1;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.8px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-mode-select:hover {
+  background: rgba(51, 65, 85, 0.85);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.btn-mode-select.active {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.4), rgba(3, 105, 161, 0.6));
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+}
+
+/* =============================================================================
+   ÁREA DE CRAFTING (INVENTÁRIO 2x2 E BANCADA 3x3)
+   ============================================================================= */
+.crafting-area-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.crafting-panel-box {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.crafting-flex-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.craft-grid {
+  display: grid;
+  gap: 6px;
+  background: rgba(20, 30, 50, 0.65);
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.craft-grid-2x2 {
+  grid-template-columns: repeat(2, 48px);
+}
+
+.craft-grid-3x3 {
+  grid-template-columns: repeat(3, 48px);
+}
+
+.craft-slot {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.craft-arrow {
+  font-size: 1.6rem;
+  color: #38bdf8;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+  user-select: none;
+}
+
+.craft-output-slot {
+  width: 52px;
+  height: 52px;
+  background: rgba(30, 41, 59, 0.9);
+  border: 2px solid rgba(56, 189, 248, 0.35);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.craft-output-slot.has-result {
+  border-color: #22c55e;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.5), inset 0 0 8px rgba(34, 197, 94, 0.2);
+  transform: scale(1.05);
+}
+
+.crafting-table-window {
+  max-width: 520px;
+}
+
+/* =============================================================================
+   TELA DE MORTE (VOCÊ MORREU)
+   ============================================================================= */
+.screen-death-overlay {
+  background: rgba(50, 10, 10, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.modal-death {
+  background: linear-gradient(145deg, rgba(45, 15, 15, 0.95), rgba(25, 8, 8, 0.98));
+  border: 2px solid rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 60px rgba(239, 68, 68, 0.35), 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+}
+
+.death-title {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #ef4444;
+  text-shadow: 0 0 25px rgba(239, 68, 68, 0.8), 0 4px 8px rgba(0, 0, 0, 0.9);
+  margin-bottom: 8px;
+}
+
+.death-subtitle {
+  font-size: 1.1rem;
+  color: #fca5a5;
+  font-weight: 400;
+}
+
+.btn-respawn {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  border-color: rgba(252, 165, 165, 0.3);
+  box-shadow: 0 6px 20px -3px rgba(220, 38, 38, 0.6);
+}
+
+.btn-respawn:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 10px 25px -3px rgba(239, 68, 68, 0.7), 0 0 18px rgba(239, 68, 68, 0.5);
+}

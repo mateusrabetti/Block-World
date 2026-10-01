@@ -11,8 +11,19 @@
   <!-- Canvas 3D do Three.js -->
   <div id="canvas-container"></div>
 
+  <!-- Efeito de Dano na Tela (Vinheta Vermelha) -->
+  <div id="damage-overlay" class="damage-overlay"></div>
+
   <!-- Mira central (Crosshair) -->
   <div id="crosshair" class="hidden"></div>
+
+  <!-- Indicador de Progresso de Mineração -->
+  <div id="mining-progress-container" class="mining-progress-container hidden">
+    <div class="mining-progress-label">MINERANDO...</div>
+    <div class="mining-progress-track">
+      <div id="mining-progress-bar" class="mining-progress-bar"></div>
+    </div>
+  </div>
 
   <!-- HUD Superior (Coordenadas, Bioma e Indicador de Voo) -->
   <div id="top-hud" class="hidden">
@@ -21,8 +32,11 @@
     <div id="hud-fly-badge" class="hud-badge hud-badge-fly hidden">✈ MODO VOO</div>
   </div>
 
-  <!-- Barra de Acesso Rápido Inferior (Hotbar) -->
+  <!-- Barra de Acesso Rápido Inferior (Hotbar) e Barra de Vida -->
   <div id="hotbar-wrapper" class="hidden">
+    <!-- Corações de Vida (Modo Sobrevivência) -->
+    <div id="hud-hearts" class="hud-hearts"></div>
+
     <div id="selected-block-label">
       Bloco: <span id="selected-block-name">Grama</span>
     </div>
@@ -144,6 +158,21 @@
         <p class="form-hint">Mundos com a mesma seed geram exatamente o mesmo terreno.</p>
       </div>
 
+      <div class="form-group">
+        <label>Modo de Jogo</label>
+        <div class="mode-select-group">
+          <button type="button" id="btn-mode-survival" class="btn-mode-select active" data-mode="survival">
+            ⚔️ SOBREVIVÊNCIA
+          </button>
+          <button type="button" id="btn-mode-creative" class="btn-mode-select" data-mode="creative">
+            🎨 CRIATIVO
+          </button>
+        </div>
+        <p id="mode-hint-text" class="form-hint">
+          Sobrevivência: Colete recursos, use ferramentas, gerencie sua vida e crie itens para progredir.
+        </p>
+      </div>
+
       <div class="create-actions">
         <button id="btn-confirm-create-world" class="btn-primary">
           CRIAR E ENTRAR
@@ -175,9 +204,9 @@
       <div class="controls-container">
         <div class="controls-header">Dicas de Sobrevivência</div>
         <p class="controls-text">
-          Pressione <span class="key-badge">E</span> para gerenciar seu inventário.<br>
-          Dê um duplo clique rápido em <span class="key-badge">Espaço</span> para voar livremente.<br>
-          Enquanto voa: <span class="key-badge">Espaço</span> sobe, <span class="key-badge">Shift</span> desce.
+          Pressione <span class="key-badge">E</span> para abrir o inventário e fabricar itens.<br>
+          No modo Criativo: duplo clique em <span class="key-badge">Espaço</span> para voar.<br>
+          Clique com o botão direito na Bancada para abrir o Crafting 3x3.
         </p>
       </div>
     </div>
@@ -189,6 +218,21 @@
       <div class="inventory-header">
         <span class="inventory-title">INVENTÁRIO DO JOGADOR</span>
         <button id="btn-close-inventory" class="btn-close-inv" title="Fechar (E / ESC)">✕</button>
+      </div>
+
+      <!-- Área de Crafting 2x2 -->
+      <div class="crafting-area-container">
+        <div class="crafting-panel-box">
+          <div class="inventory-section-label">Criação (2x2)</div>
+          <div class="crafting-flex-row">
+            <div id="inv-craft-grid" class="craft-grid craft-grid-2x2"></div>
+            <div class="craft-arrow">➔</div>
+            <div id="inv-craft-output" class="inv-slot craft-output-slot" title="Resultado do Crafting">
+              <img class="slot-icon" alt="Resultado">
+              <span class="slot-count"></span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="inventory-section-label">Mochila</div>
@@ -205,7 +249,61 @@
     </div>
   </div>
 
-  <!-- 6. TELA DE CONFIGURAÇÕES -->
+  <!-- 6. TELA DA BANCADA DE TRABALHO (CRAFTING 3x3) -->
+  <div id="screen-crafting-table" class="screen-overlay hidden">
+    <div class="inventory-window crafting-table-window">
+      <div class="inventory-header">
+        <span class="inventory-title">BANCADA DE TRABALHO</span>
+        <button id="btn-close-crafting-table" class="btn-close-inv" title="Fechar (E / ESC)">✕</button>
+      </div>
+
+      <!-- Área de Crafting 3x3 -->
+      <div class="crafting-area-container">
+        <div class="crafting-panel-box">
+          <div class="inventory-section-label">Criação Avançada (3x3)</div>
+          <div class="crafting-flex-row">
+            <div id="table-craft-grid" class="craft-grid craft-grid-3x3"></div>
+            <div class="craft-arrow">➔</div>
+            <div id="table-craft-output" class="inv-slot craft-output-slot" title="Resultado do Crafting">
+              <img class="slot-icon" alt="Resultado">
+              <span class="slot-count"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="inventory-section-label">Mochila</div>
+      <div id="table-main-grid" class="inv-grid"></div>
+
+      <div class="inventory-section-label">Barra de Acesso Rápido (Hotbar)</div>
+      <div id="table-hotbar-grid" class="inv-grid inv-grid-hotbar"></div>
+
+      <div class="inventory-footer-tip">
+        Crie picaretas, machados, pás e receitas de até 3x3
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. TELA DE MORTE (VOCÊ MORREU) -->
+  <div id="screen-death" class="screen-overlay hidden screen-death-overlay">
+    <div class="overlay-modal modal-death">
+      <div class="title-container">
+        <h1 class="death-title">VOCÊ MORREU</h1>
+        <p id="death-reason" class="death-subtitle">Sua jornada terminou aqui.</p>
+      </div>
+
+      <div class="menu-button-group">
+        <button id="btn-death-respawn" class="btn-primary btn-respawn">
+          VOLTAR AO MUNDO
+        </button>
+        <button id="btn-death-menu" class="btn-secondary">
+          VOLTAR AO MENU
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. TELA DE CONFIGURAÇÕES -->
   <div id="screen-settings" class="screen-overlay hidden">
     <div class="overlay-modal modal-settings">
       <div class="title-container">
@@ -241,6 +339,11 @@
 
   <!-- Módulos da Aplicação (Ordem correta de dependências) -->
   <script src="js/blocks.js"></script>
+  <script src="js/items.js"></script>
+  <script src="js/recipes.js"></script>
+  <script src="js/crafting.js"></script>
+  <script src="js/mining.js"></script>
+  <script src="js/health.js"></script>
   <script src="js/terrain.js"></script>
   <script src="js/chunk.js"></script>
   <script src="js/world.js"></script>

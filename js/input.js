@@ -32,22 +32,28 @@ class Input {
       // Ignora se estiver digitando em campos de texto (como nome/seed do mundo)
       if (e.target.tagName === 'INPUT') return;
 
-      // Tecla 'E': Abre / Fecha Inventário
+      // Tecla 'E': Abre / Fecha Inventário ou Bancada
       if (e.code === 'KeyE') {
         e.preventDefault();
         if (this.game.state === 'PLAYING') {
           this.game.openInventory();
         } else if (this.game.state === 'INVENTORY') {
           this.game.closeInventory();
+        } else if (this.game.state === 'CRAFTING_TABLE') {
+          this.game.closeCraftingTable();
         }
         return;
       }
 
-      // Tecla 'Escape': Fecha Inventário ou Pausa
+      // Tecla 'Escape': Fecha Inventário, Bancada ou Pausa
       if (e.code === 'Escape') {
         if (this.game.state === 'INVENTORY') {
           e.preventDefault();
           this.game.closeInventory();
+          return;
+        } else if (this.game.state === 'CRAFTING_TABLE') {
+          e.preventDefault();
+          this.game.closeCraftingTable();
           return;
         }
       }
@@ -79,13 +85,15 @@ class Input {
           // Ignora repetição automática do sistema operacional ao segurar Espaço
           if (e.repeat) break;
 
-          // Detecção de Duplo Toque no Espaço para Ativar/Desativar Voo
-          const now = performance.now();
-          if (now - this.lastSpacePress < this.doubleTapThreshold) {
-            this.game.player.toggleFlight();
-            this.lastSpacePress = 0;
-          } else {
-            this.lastSpacePress = now;
+          // Detecção de Duplo Toque no Espaço para Ativar/Desativar Voo (Apenas modo CRIATIVO)
+          if (this.game.gameMode === 'creative') {
+            const now = performance.now();
+            if (now - this.lastSpacePress < this.doubleTapThreshold) {
+              this.game.player.toggleFlight();
+              this.lastSpacePress = 0;
+            } else {
+              this.lastSpacePress = now;
+            }
           }
           break;
         case 'ShiftLeft':
@@ -147,13 +155,28 @@ class Input {
       if (!this.isPointerLocked || this.game.state !== 'PLAYING') return;
 
       if (e.button === 0) {
-        // Botão Esquerdo: Quebra Bloco
-        this.game.player.breakBlock();
-        this.game.ui.updateHotbar();
+        // Botão Esquerdo: Quebra Bloco (Instantâneo no Criativo, Mineração progressiva no Sobrevivência)
+        if (this.game.gameMode === 'creative') {
+          this.game.player.breakBlock();
+          this.game.ui.updateHotbar();
+        } else {
+          if (this.game.mining) {
+            this.game.mining.startMining(this.game.player.targetBlock);
+          }
+        }
       } else if (e.button === 2) {
-        // Botão Direito: Coloca Bloco
+        // Botão Direito: Coloca Bloco ou Interage (ex: Bancada)
         this.game.player.placeBlock();
         this.game.ui.updateHotbar();
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) {
+        // Soltou botão de quebra: encerra mineração
+        if (this.game.mining) {
+          this.game.mining.stopMining();
+        }
       }
     });
 
@@ -187,12 +210,15 @@ class Input {
       } else {
         // Se destravou o mouse:
         this.resetKeys();
+        if (this.game.mining) {
+          this.game.mining.stopMining();
+        }
 
         // Se estava no jogo ativo e destravou (ex: pressionou ESC), pausa
         if (this.game.state === 'PLAYING') {
           this.game.pauseGame();
         }
-        // Se estava em INVENTORY, permanece em INVENTORY
+        // Se estava em INVENTORY, CRAFTING_TABLE ou DEAD, permanece no estado correspondente
       }
     });
   }

@@ -35,7 +35,7 @@ class SaveSystem {
   /**
    * Cria um novo registro de mundo
    */
-  static createWorld(name, seed) {
+  static createWorld(name, seed, mode = 'survival') {
     const worlds = this.getWorlds();
 
     // Se nome não for informado, cria padrão "Mundo N"
@@ -46,12 +46,14 @@ class SaveSystem {
       ? String(seed).trim()
       : Math.floor(Math.random() * 899999 + 100000);
 
+    const worldMode = mode === 'creative' ? 'creative' : 'survival';
     const worldId = 'world_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
 
     const meta = {
       id: worldId,
       name: worldName,
       seed: worldSeed,
+      mode: worldMode,
       createdAt: Date.now(),
       lastPlayed: Date.now()
     };
@@ -59,6 +61,8 @@ class SaveSystem {
     // Dados iniciais completos do mundo
     const worldData = {
       ...meta,
+      mode: worldMode,
+      health: 20,
       player: {
         x: 64.5,
         y: 18.0,
@@ -117,6 +121,7 @@ class SaveSystem {
         meta.lastPlayed = worldData.lastPlayed;
         meta.name = worldData.name;
         meta.seed = worldData.seed;
+        meta.mode = worldData.mode || 'survival';
         // Coloca o mundo mais recentemente jogado no topo
         const filtered = worlds.filter(w => w.id !== worldData.id);
         filtered.unshift(meta);
@@ -150,7 +155,7 @@ class SaveSystem {
   static ensureDefaultWorld() {
     const worlds = this.getWorlds();
     if (worlds.length === 0) {
-      return this.createWorld('Mundo Inicial', 839201);
+      return this.createWorld('Mundo Inicial', 839201, 'survival');
     }
     return null;
   }

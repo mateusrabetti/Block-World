@@ -1,19 +1,23 @@
 // =============================================================================
-// js/ui.js - Interface de Usuário: Menus, Hotbar, Inventário e HUD
+// js/ui.js - Interface de Usuário: Menus, Hotbar, Inventário, Crafting 2x2 e 3x3, HUD
 // =============================================================================
 
 class UI {
   constructor(game) {
     this.game = game;
 
+    // Modo de jogo selecionado para novo mundo
+    this.selectedMode = 'survival';
+
     // Cache de elementos do DOM
     this.initElements();
 
-    // Constrói os slots estáticos da Hotbar e do Inventário
+    // Constrói os slots estáticos da Hotbar, Inventário e Bancada de Trabalho
     this.buildHotbarDOM();
     this.buildInventoryDOM();
+    this.buildCraftingTableDOM();
 
-    // Eventos de clique nos menus
+    // Eventos de clique nos menus e seletores
     this.initMenuEvents();
 
     // Eventos do mouse no inventário (arrastar / soltar itens)
@@ -27,6 +31,8 @@ class UI {
     this.createWorldMenuEl = document.getElementById('screen-create-world');
     this.pauseMenuEl = document.getElementById('screen-pause');
     this.inventoryOverlayEl = document.getElementById('screen-inventory');
+    this.craftingTableOverlayEl = document.getElementById('screen-crafting-table');
+    this.deathScreenEl = document.getElementById('screen-death');
     this.settingsMenuEl = document.getElementById('screen-settings');
 
     // Elementos do HUD
@@ -38,6 +44,10 @@ class UI {
     this.hotbarWrapperEl = document.getElementById('hotbar-wrapper');
     this.hotbarContainer = document.getElementById('hotbar');
     this.selectedBlockName = document.getElementById('selected-block-name');
+
+    // Barra de progresso de mineração
+    this.miningProgressContainer = document.getElementById('mining-progress-container');
+    this.miningProgressBar = document.getElementById('mining-progress-bar');
 
     // Elemento do item segurado pelo cursor no inventário
     this.cursorItemEl = document.getElementById('inventory-cursor-item');
@@ -68,9 +78,17 @@ class UI {
       const countEl = document.createElement('span');
       countEl.className = 'slot-count';
 
+      // Barra de durabilidade da ferramenta
+      const durEl = document.createElement('div');
+      durEl.className = 'slot-durability-track hidden';
+      const durFill = document.createElement('div');
+      durFill.className = 'slot-durability-fill';
+      durEl.appendChild(durFill);
+
       slotEl.appendChild(imgEl);
       slotEl.appendChild(keyEl);
       slotEl.appendChild(countEl);
+      slotEl.appendChild(durEl);
 
       // Clique direto no slot da hotbar
       slotEl.addEventListener('click', () => {
@@ -91,6 +109,8 @@ class UI {
       const item = this.game.inventory.slots[idx];
       const imgEl = slotEl.querySelector('.slot-icon');
       const countEl = slotEl.querySelector('.slot-count');
+      const durTrack = slotEl.querySelector('.slot-durability-track');
+      const durFill = slotEl.querySelector('.slot-durability-fill');
 
       if (idx === selectedIndex) {
         slotEl.classList.add('active');
@@ -99,22 +119,54 @@ class UI {
       }
 
       if (item && item.count > 0) {
-        imgEl.src = getBlockIconDataUrl(item.id);
+        imgEl.src = getItemOrBlockIcon(item.id);
         imgEl.style.display = 'block';
         countEl.textContent = item.count > 1 ? String(item.count) : '';
+
+        // Durabilidade
+        this.renderDurability(durTrack, durFill, item);
       } else {
         imgEl.style.display = 'none';
         countEl.textContent = '';
+        if (durTrack) durTrack.classList.add('hidden');
       }
     });
 
     // Atualiza o rótulo com o nome do item selecionado
     const currentItem = this.game.inventory.getSelectedHotbarItem();
-    if (currentItem && currentItem.count > 0 && BLOCK_TYPES[currentItem.id]) {
-      const def = BLOCK_TYPES[currentItem.id];
-      this.selectedBlockName.textContent = `${def.name} (${currentItem.count})`;
+    if (currentItem && currentItem.count > 0) {
+      const name = getItemOrBlockName(currentItem.id);
+      const def = getItemOrBlockDef(currentItem.id);
+      if (def?.isTool && currentItem.durability !== undefined) {
+        this.selectedBlockName.textContent = `${name} (${currentItem.durability}/${currentItem.maxDurability || def.maxDurability})`;
+      } else {
+        this.selectedBlockName.textContent = `${name} (${currentItem.count})`;
+      }
     } else {
       this.selectedBlockName.textContent = 'Vazio';
+    }
+  }
+
+  renderDurability(durTrack, durFill, item) {
+    if (!durTrack || !durFill) return;
+
+    const def = getItemOrBlockDef(item.id);
+    if (def?.isTool && item.durability !== undefined) {
+      const max = item.maxDurability || def.maxDurability || 60;
+      const ratio = Math.max(0, Math.min(1, item.durability / max));
+
+      durTrack.classList.remove('hidden');
+      durFill.style.width = `${ratio * 100}%`;
+
+      if (ratio > 0.5) {
+        durFill.style.backgroundColor = '#22c55e'; // Verde
+      } else if (ratio > 0.25) {
+        durFill.style.backgroundColor = '#eab308'; // Amarelo
+      } else {
+        durFill.style.backgroundColor = '#ef4444'; // Vermelho
+      }
+    } else {
+      durTrack.classList.add('hidden');
     }
   }
 
@@ -137,26 +189,163 @@ class UI {
   }
 
   // ===========================================================================
-  // CONSTRUÇÃO E ATUALIZAÇÃO DO INVENTÁRIO (36 SLOTS)
+  // CONSTRUÇÃO E ATUALIZAÇÃO DO INVENTÁRIO (36 SLOTS + CRAFTING 2x2)
   // ===========================================================================
   buildInventoryDOM() {
     const mainGrid = document.getElementById('inv-main-grid');
     const hotbarGrid = document.getElementById('inv-hotbar-grid');
-    if (!mainGrid || !hotbarGrid) return;
+    const craftGrid = document.getElementById('inv-craft-grid');
+    const craftOutput = document.getElementById('inv-craft-output');
 
-    mainGrid.innerHTML = '';
-    hotbarGrid.innerHTML = '';
+    if (mainGrid && hotbarGrid) {
+      mainGrid.innerHTML = '';
+      hotbarGrid.innerHTML = '';
 
-    // Slots 9 a 35: Mochila principal (3 linhas de 9 = 27 slots)
-    for (let i = 9; i < 36; i++) {
-      const slotEl = this.createInventorySlotElement(i);
-      mainGrid.appendChild(slotEl);
+      // Slots 9 a 35: Mochila principal (3 linhas de 9 = 27 slots)
+      for (let i = 9; i < 36; i++) {
+        const slotEl = this.createInventorySlotElement(i);
+        mainGrid.appendChild(slotEl);
+      }
+
+      // Slots 0 a 8: Linha da Hotbar no inventário (1 linha de 9)
+      for (let i = 0; i < 9; i++) {
+        const slotEl = this.createInventorySlotElement(i);
+        hotbarGrid.appendChild(slotEl);
+      }
     }
 
-    // Slots 0 a 8: Linha da Hotbar no inventário (1 linha de 9)
-    for (let i = 0; i < 9; i++) {
-      const slotEl = this.createInventorySlotElement(i);
-      hotbarGrid.appendChild(slotEl);
+    // Grade 2x2 de Crafting no Inventário
+    if (craftGrid) {
+      craftGrid.innerHTML = '';
+      for (let i = 0; i < 4; i++) {
+        const slotEl = document.createElement('div');
+        slotEl.className = 'inv-slot craft-slot';
+        slotEl.dataset.craftIndex = i;
+
+        const imgEl = document.createElement('img');
+        imgEl.className = 'slot-icon';
+        imgEl.alt = 'Ingrediente';
+
+        const countEl = document.createElement('span');
+        countEl.className = 'slot-count';
+
+        slotEl.appendChild(imgEl);
+        slotEl.appendChild(countEl);
+
+        slotEl.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (this.cursorItemEl) {
+            this.cursorItemEl.style.left = `${e.clientX}px`;
+            this.cursorItemEl.style.top = `${e.clientY}px`;
+          }
+
+          if (e.button === 0) {
+            this.game.crafting.handleGridLeftClick(i, false);
+          } else if (e.button === 2) {
+            this.game.crafting.handleGridRightClick(i, false);
+          }
+
+          this.updateCraftingGrids();
+          this.updateCursorItem();
+        });
+
+        craftGrid.appendChild(slotEl);
+      }
+    }
+
+    // Slot de Resultado (Output) 2x2
+    if (craftOutput) {
+      craftOutput.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.button === 0) {
+          this.game.crafting.handleOutputClick(false);
+          this.updateCraftingGrids();
+          this.updateInventory();
+          this.updateHotbar();
+          this.updateCursorItem();
+        }
+      });
+    }
+  }
+
+  // ===========================================================================
+  // CONSTRUÇÃO E ATUALIZAÇÃO DA BANCADA DE TRABALHO (CRAFTING 3x3)
+  // ===========================================================================
+  buildCraftingTableDOM() {
+    const tableCraftGrid = document.getElementById('table-craft-grid');
+    const tableCraftOutput = document.getElementById('table-craft-output');
+    const tableMainGrid = document.getElementById('table-main-grid');
+    const tableHotbarGrid = document.getElementById('table-hotbar-grid');
+
+    if (tableCraftGrid) {
+      tableCraftGrid.innerHTML = '';
+      for (let i = 0; i < 9; i++) {
+        const slotEl = document.createElement('div');
+        slotEl.className = 'inv-slot craft-slot';
+        slotEl.dataset.tableCraftIndex = i;
+
+        const imgEl = document.createElement('img');
+        imgEl.className = 'slot-icon';
+        imgEl.alt = 'Ingrediente';
+
+        const countEl = document.createElement('span');
+        countEl.className = 'slot-count';
+
+        slotEl.appendChild(imgEl);
+        slotEl.appendChild(countEl);
+
+        slotEl.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (this.cursorItemEl) {
+            this.cursorItemEl.style.left = `${e.clientX}px`;
+            this.cursorItemEl.style.top = `${e.clientY}px`;
+          }
+
+          if (e.button === 0) {
+            this.game.crafting.handleGridLeftClick(i, true);
+          } else if (e.button === 2) {
+            this.game.crafting.handleGridRightClick(i, true);
+          }
+
+          this.updateCraftingGrids();
+          this.updateCursorItem();
+        });
+
+        tableCraftGrid.appendChild(slotEl);
+      }
+    }
+
+    if (tableCraftOutput) {
+      tableCraftOutput.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.button === 0) {
+          this.game.crafting.handleOutputClick(true);
+          this.updateCraftingGrids();
+          this.updateInventory();
+          this.updateHotbar();
+          this.updateCursorItem();
+        }
+      });
+    }
+
+    // Espelho da mochila e da hotbar na tela da bancada
+    if (tableMainGrid && tableHotbarGrid) {
+      tableMainGrid.innerHTML = '';
+      tableHotbarGrid.innerHTML = '';
+
+      for (let i = 9; i < 36; i++) {
+        const slotEl = this.createInventorySlotElement(i);
+        tableMainGrid.appendChild(slotEl);
+      }
+
+      for (let i = 0; i < 9; i++) {
+        const slotEl = this.createInventorySlotElement(i);
+        tableHotbarGrid.appendChild(slotEl);
+      }
     }
   }
 
@@ -172,8 +361,16 @@ class UI {
     const countEl = document.createElement('span');
     countEl.className = 'slot-count';
 
+    // Barra de durabilidade
+    const durTrack = document.createElement('div');
+    durTrack.className = 'slot-durability-track hidden';
+    const durFill = document.createElement('div');
+    durFill.className = 'slot-durability-fill';
+    durTrack.appendChild(durFill);
+
     slotEl.appendChild(imgEl);
     slotEl.appendChild(countEl);
+    slotEl.appendChild(durTrack);
 
     // Eventos de clique com botão esquerdo e direito
     slotEl.addEventListener('mousedown', (e) => {
@@ -187,10 +384,8 @@ class UI {
       }
 
       if (e.button === 0) {
-        // Clique esquerdo
         this.game.inventory.handleSlotLeftClick(index);
       } else if (e.button === 2) {
-        // Clique direito
         this.game.inventory.handleSlotRightClick(index);
       }
 
@@ -205,15 +400,42 @@ class UI {
   updateInventory() {
     if (!this.game.inventory) return;
 
-    const allSlots = this.inventoryOverlayEl.querySelectorAll('.inv-slot');
+    // Atualiza slots no inventário pessoal e na bancada de trabalho
+    const allSlots = document.querySelectorAll('.inventory-window .inv-slot[data-slot-index]');
     allSlots.forEach(slotEl => {
       const idx = parseInt(slotEl.dataset.slotIndex, 10);
       const item = this.game.inventory.slots[idx];
       const imgEl = slotEl.querySelector('.slot-icon');
       const countEl = slotEl.querySelector('.slot-count');
+      const durTrack = slotEl.querySelector('.slot-durability-track');
+      const durFill = slotEl.querySelector('.slot-durability-fill');
 
       if (item && item.count > 0) {
-        imgEl.src = getBlockIconDataUrl(item.id);
+        imgEl.src = getItemOrBlockIcon(item.id);
+        imgEl.style.display = 'block';
+        countEl.textContent = item.count > 1 ? String(item.count) : '';
+        this.renderDurability(durTrack, durFill, item);
+      } else {
+        imgEl.style.display = 'none';
+        countEl.textContent = '';
+        if (durTrack) durTrack.classList.add('hidden');
+      }
+    });
+
+    this.updateCraftingGrids();
+  }
+
+  updateCraftingGrids() {
+    if (!this.game.crafting) return;
+
+    // 1. Grade 2x2 do inventário
+    const invGridSlots = document.querySelectorAll('#inv-craft-grid .craft-slot');
+    invGridSlots.forEach((slotEl, idx) => {
+      const item = this.game.crafting.invGrid[idx];
+      const imgEl = slotEl.querySelector('.slot-icon');
+      const countEl = slotEl.querySelector('.slot-count');
+      if (item && item.count > 0) {
+        imgEl.src = getItemOrBlockIcon(item.id);
         imgEl.style.display = 'block';
         countEl.textContent = item.count > 1 ? String(item.count) : '';
       } else {
@@ -221,12 +443,61 @@ class UI {
         countEl.textContent = '';
       }
     });
+
+    const invOutputEl = document.getElementById('inv-craft-output');
+    if (invOutputEl) {
+      const outItem = this.game.crafting.invOutput;
+      const imgEl = invOutputEl.querySelector('.slot-icon');
+      const countEl = invOutputEl.querySelector('.slot-count');
+      if (outItem && outItem.count > 0) {
+        imgEl.src = getItemOrBlockIcon(outItem.id);
+        imgEl.style.display = 'block';
+        countEl.textContent = outItem.count > 1 ? String(outItem.count) : '';
+        invOutputEl.classList.add('has-result');
+      } else {
+        imgEl.style.display = 'none';
+        countEl.textContent = '';
+        invOutputEl.classList.remove('has-result');
+      }
+    }
+
+    // 2. Grade 3x3 da Bancada de Trabalho
+    const tableGridSlots = document.querySelectorAll('#table-craft-grid .craft-slot');
+    tableGridSlots.forEach((slotEl, idx) => {
+      const item = this.game.crafting.tableGrid[idx];
+      const imgEl = slotEl.querySelector('.slot-icon');
+      const countEl = slotEl.querySelector('.slot-count');
+      if (item && item.count > 0) {
+        imgEl.src = getItemOrBlockIcon(item.id);
+        imgEl.style.display = 'block';
+        countEl.textContent = item.count > 1 ? String(item.count) : '';
+      } else {
+        imgEl.style.display = 'none';
+        countEl.textContent = '';
+      }
+    });
+
+    const tableOutputEl = document.getElementById('table-craft-output');
+    if (tableOutputEl) {
+      const outItem = this.game.crafting.tableOutput;
+      const imgEl = tableOutputEl.querySelector('.slot-icon');
+      const countEl = tableOutputEl.querySelector('.slot-count');
+      if (outItem && outItem.count > 0) {
+        imgEl.src = getItemOrBlockIcon(outItem.id);
+        imgEl.style.display = 'block';
+        countEl.textContent = outItem.count > 1 ? String(outItem.count) : '';
+        tableOutputEl.classList.add('has-result');
+      } else {
+        imgEl.style.display = 'none';
+        countEl.textContent = '';
+        tableOutputEl.classList.remove('has-result');
+      }
+    }
   }
 
   initInventoryMouseEvents() {
-    // Faz o item segurado pelo cursor acompanhar o mouse suavemente
     window.addEventListener('mousemove', (e) => {
-      if (this.game.state === 'INVENTORY' && this.cursorItemEl) {
+      if ((this.game.state === 'INVENTORY' || this.game.state === 'CRAFTING_TABLE') && this.cursorItemEl) {
         this.cursorItemEl.style.left = `${e.clientX}px`;
         this.cursorItemEl.style.top = `${e.clientY}px`;
       }
@@ -240,7 +511,7 @@ class UI {
     if (item && item.count > 0) {
       const imgEl = this.cursorItemEl.querySelector('.cursor-item-icon');
       const countEl = this.cursorItemEl.querySelector('.cursor-item-count');
-      imgEl.src = getBlockIconDataUrl(item.id);
+      imgEl.src = getItemOrBlockIcon(item.id);
       countEl.textContent = item.count > 1 ? String(item.count) : '';
       this.cursorItemEl.classList.remove('hidden');
     } else {
@@ -248,11 +519,25 @@ class UI {
     }
   }
 
+  // Atualização visual da barra de progresso de mineração
+  updateMiningProgress(progress) {
+    if (!this.miningProgressContainer || !this.miningProgressBar) return;
+
+    if (progress > 0 && progress < 1.0) {
+      this.miningProgressContainer.classList.remove('hidden');
+      const pct = Math.min(100, Math.round(progress * 100));
+      this.miningProgressBar.style.width = `${pct}%`;
+    } else {
+      this.miningProgressContainer.classList.add('hidden');
+      this.miningProgressBar.style.width = '0%';
+    }
+  }
+
   // ===========================================================================
   // GERENCIAMENTO DE MENUS E NAVEGAÇÃO
   // ===========================================================================
   initMenuEvents() {
-    // Menu Principal: JOGAR (Carrega último mundo ou abre mundos)
+    // Menu Principal: JOGAR
     document.getElementById('btn-main-play')?.addEventListener('click', (e) => {
       const btn = e.currentTarget;
       if (btn.disabled) return;
@@ -288,6 +573,29 @@ class UI {
       this.showMainMenu();
     });
 
+    // Seletores de Modo de Jogo na Tela de Criação
+    const btnModeSurvival = document.getElementById('btn-mode-survival');
+    const btnModeCreative = document.getElementById('btn-mode-creative');
+    const hintText = document.getElementById('mode-hint-text');
+
+    btnModeSurvival?.addEventListener('click', () => {
+      this.selectedMode = 'survival';
+      btnModeSurvival.classList.add('active');
+      btnModeCreative?.classList.remove('active');
+      if (hintText) {
+        hintText.textContent = 'Sobrevivência: Colete recursos, use ferramentas, gerencie sua vida e crie itens para progredir.';
+      }
+    });
+
+    btnModeCreative?.addEventListener('click', () => {
+      this.selectedMode = 'creative';
+      btnModeCreative.classList.add('active');
+      btnModeSurvival?.classList.remove('active');
+      if (hintText) {
+        hintText.textContent = 'Criativo: Voo livre (duplo espaço), blocos infinitos, quebra instantânea e sem dano.';
+      }
+    });
+
     // Tela de Criação: GERAR SEED ALEATÓRIA
     document.getElementById('btn-random-seed')?.addEventListener('click', () => {
       const seedInput = document.getElementById('input-world-seed');
@@ -297,7 +605,7 @@ class UI {
     });
 
     // Tela de Criação: CRIAR MUNDO (Confirmar)
-    const handleConfirmCreateWorld = (e) => {
+    const handleConfirmCreateWorld = () => {
       const btn = document.getElementById('btn-confirm-create-world');
       if (btn && btn.disabled) return;
       if (btn) {
@@ -311,17 +619,17 @@ class UI {
       const name = nameInput ? nameInput.value : '';
       const seed = seedInput ? seedInput.value : '';
 
-      this.game.worldManager.createNewWorldAndEnter(name, seed);
+      this.game.worldManager.createNewWorldAndEnter(name, seed, this.selectedMode);
     };
 
     document.getElementById('btn-confirm-create-world')?.addEventListener('click', handleConfirmCreateWorld);
 
     // Suporte à tecla Enter nos campos de criação de mundo
     document.getElementById('input-world-name')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleConfirmCreateWorld(e);
+      if (e.key === 'Enter') handleConfirmCreateWorld();
     });
     document.getElementById('input-world-seed')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleConfirmCreateWorld(e);
+      if (e.key === 'Enter') handleConfirmCreateWorld();
     });
 
     // Tela de Criação: CANCELAR
@@ -349,6 +657,11 @@ class UI {
     document.getElementById('btn-close-inventory')?.addEventListener('click', () => {
       this.game.closeInventory();
     });
+
+    // Botão de fechar bancada de trabalho (X)
+    document.getElementById('btn-close-crafting-table')?.addEventListener('click', () => {
+      this.game.closeCraftingTable();
+    });
   }
 
   hideAllMenus() {
@@ -357,12 +670,15 @@ class UI {
     this.createWorldMenuEl?.classList.add('hidden');
     this.pauseMenuEl?.classList.add('hidden');
     this.inventoryOverlayEl?.classList.add('hidden');
+    this.craftingTableOverlayEl?.classList.add('hidden');
+    this.deathScreenEl?.classList.add('hidden');
     this.settingsMenuEl?.classList.add('hidden');
 
     this.crosshairEl?.classList.add('hidden');
     this.topHudEl?.classList.add('hidden');
     this.hotbarWrapperEl?.classList.add('hidden');
     this.cursorItemEl?.classList.add('hidden');
+    this.updateMiningProgress(0);
   }
 
   showMainMenu() {
@@ -385,6 +701,15 @@ class UI {
     if (nameInput) nameInput.value = `Mundo ${worlds.length + 1}`;
     if (seedInput) seedInput.value = Math.floor(Math.random() * 899999 + 100000);
 
+    // Reseta modo padrão para sobrevivência
+    this.selectedMode = 'survival';
+    document.getElementById('btn-mode-survival')?.classList.add('active');
+    document.getElementById('btn-mode-creative')?.classList.remove('active');
+    const hintText = document.getElementById('mode-hint-text');
+    if (hintText) {
+      hintText.textContent = 'Sobrevivência: Colete recursos, use ferramentas, gerencie sua vida e crie itens para progredir.';
+    }
+
     this.createWorldMenuEl?.classList.remove('hidden');
   }
 
@@ -404,6 +729,17 @@ class UI {
     this.inventoryOverlayEl?.classList.remove('hidden');
   }
 
+  showCraftingTable() {
+    this.hideAllMenus();
+    this.updateInventory();
+    this.updateHotbar();
+    this.updateCursorItem();
+
+    // Mantém o HUD visível de fundo
+    this.hotbarWrapperEl?.classList.remove('hidden');
+    this.craftingTableOverlayEl?.classList.remove('hidden');
+  }
+
   showSettingsScreen() {
     this.hideAllMenus();
     this.settingsMenuEl?.classList.remove('hidden');
@@ -414,6 +750,10 @@ class UI {
     this.crosshairEl?.classList.remove('hidden');
     this.topHudEl?.classList.remove('hidden');
     this.hotbarWrapperEl?.classList.remove('hidden');
+
+    if (this.game.health) {
+      this.game.health.updateHeartsUI();
+    }
   }
 
   // Renderiza a lista de mundos salvos dinamicamente
@@ -446,7 +786,8 @@ class UI {
       const detailsEl = document.createElement('div');
       detailsEl.className = 'world-details';
       const dateStr = new Date(world.lastPlayed || world.createdAt).toLocaleDateString();
-      detailsEl.textContent = `Seed: ${world.seed} • Jogado em: ${dateStr}`;
+      const modeLabel = world.mode === 'creative' ? '🎨 Criativo' : '⚔️ Sobrevivência';
+      detailsEl.textContent = `${modeLabel} • Seed: ${world.seed} • Jogado em: ${dateStr}`;
 
       infoDiv.appendChild(nameEl);
       infoDiv.appendChild(detailsEl);
@@ -499,6 +840,9 @@ class UI {
   onWorldLoaded() {
     this.updateHotbar();
     this.updateInventory();
+    if (this.game.health) {
+      this.game.health.updateHeartsUI();
+    }
   }
 
   // Atualização por quadro (Coordenadas, Bioma, Voo)
@@ -522,7 +866,8 @@ class UI {
     }
 
     if (this.flyBadgeEl) {
-      if (this.game.player.isFlying) {
+      // Voo apenas no modo criativo
+      if (this.game.gameMode === 'creative' && this.game.player.isFlying) {
         this.flyBadgeEl.classList.remove('hidden');
       } else {
         this.flyBadgeEl.classList.add('hidden');

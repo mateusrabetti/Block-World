@@ -12,6 +12,10 @@ class TerrainGenerator {
     if (typeof seed === 'number' && !isNaN(seed)) {
       return seed | 0;
     }
+    const num = Number(seed);
+    if (!isNaN(num) && isFinite(num) && String(seed).trim() !== '') {
+      return (num | 0);
+    }
     const str = String(seed || '12345');
     let hash = 0;
     for (let i = 0; i < str.length; i++) {

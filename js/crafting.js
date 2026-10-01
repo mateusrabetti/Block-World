@@ -179,7 +179,7 @@ class CraftingController {
     for (let i = 0; i < grid.length; i++) {
       const item = grid[i];
       if (item && item.count > 0) {
-        this.game.inventory.addItem(item.id, item.count);
+        this.game.inventory.addItem(item.id, item.count, item.durability, item.maxDurability);
         grid[i] = null;
       }
     }

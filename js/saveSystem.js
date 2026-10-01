@@ -58,19 +58,12 @@ class SaveSystem {
       lastPlayed: Date.now()
     };
 
-    // Dados iniciais completos do mundo
+    // Dados iniciais completos do mundo (player: null para posicionamento seguro sobre o terreno)
     const worldData = {
       ...meta,
       mode: worldMode,
       health: 20,
-      player: {
-        x: 64.5,
-        y: 18.0,
-        z: 64.5,
-        yaw: -Math.PI / 4,
-        pitch: -0.15,
-        isFlying: false
-      },
+      player: null,
       inventory: null, // Será preenchido com starter kit no primeiro carregamento
       selectedHotbarIndex: 0,
       modifiedBlocks: {}
@@ -96,8 +89,26 @@ class SaveSystem {
   static loadWorld(worldId) {
     try {
       const raw = localStorage.getItem(STORAGE_PREFIX_DATA + worldId);
-      if (!raw) return null;
-      return JSON.parse(raw);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+      // Fallback de recuperação caso os metadados existam mas os dados do mundo não
+      const worlds = this.getWorlds();
+      const meta = worlds.find(w => w.id === worldId);
+      if (meta) {
+        const fallbackData = {
+          ...meta,
+          mode: meta.mode || 'survival',
+          health: 20,
+          player: null,
+          inventory: null,
+          selectedHotbarIndex: 0,
+          modifiedBlocks: {}
+        };
+        localStorage.setItem(STORAGE_PREFIX_DATA + worldId, JSON.stringify(fallbackData));
+        return fallbackData;
+      }
+      return null;
     } catch (e) {
       console.error('Erro ao carregar mundo:', e);
       return null;
@@ -160,3 +171,5 @@ class SaveSystem {
     return null;
   }
 }
+
+window.SaveSystem = SaveSystem;

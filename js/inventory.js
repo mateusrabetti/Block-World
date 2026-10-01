@@ -175,7 +175,12 @@ class Inventory {
         const half = Math.ceil(currentSlot.count / 2);
         const remainder = currentSlot.count - half;
 
-        this.cursorItem = { id: currentSlot.id, count: half };
+        this.cursorItem = {
+          id: currentSlot.id,
+          count: half,
+          durability: currentSlot.durability,
+          maxDurability: currentSlot.maxDurability
+        };
         if (remainder > 0) {
           currentSlot.count = remainder;
         } else {
@@ -185,7 +190,12 @@ class Inventory {
     } else {
       // Tem item no cursor: deposita exatamente 1 unidade no slot
       if (!currentSlot) {
-        this.slots[slotIndex] = { id: this.cursorItem.id, count: 1 };
+        this.slots[slotIndex] = {
+          id: this.cursorItem.id,
+          count: 1,
+          durability: this.cursorItem.durability,
+          maxDurability: this.cursorItem.maxDurability
+        };
         this.cursorItem.count -= 1;
         if (this.cursorItem.count <= 0) {
           this.cursorItem = null;
@@ -203,7 +213,12 @@ class Inventory {
   // Devolve o item do cursor ao inventário (se o menu for fechado com item na mão)
   returnCursorItem() {
     if (!this.cursorItem) return;
-    this.addItem(this.cursorItem.id, this.cursorItem.count);
+    this.addItem(
+      this.cursorItem.id,
+      this.cursorItem.count,
+      this.cursorItem.durability,
+      this.cursorItem.maxDurability
+    );
     this.cursorItem = null;
   }
 

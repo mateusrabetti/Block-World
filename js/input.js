@@ -25,6 +25,7 @@ class Input {
     this.initKeyboard();
     this.initMouse();
     this.initPointerLock();
+    this.initCanvasClick();
   }
 
   initKeyboard() {
@@ -45,7 +46,7 @@ class Input {
         return;
       }
 
-      // Tecla 'Escape': Fecha Inventário, Bancada ou Pausa
+      // Tecla 'Escape': Fecha Inventário, Bancada, Pausa ou Resume
       if (e.code === 'Escape') {
         if (this.game.state === 'INVENTORY') {
           e.preventDefault();
@@ -54,6 +55,14 @@ class Input {
         } else if (this.game.state === 'CRAFTING_TABLE') {
           e.preventDefault();
           this.game.closeCraftingTable();
+          return;
+        } else if (this.game.state === 'PLAYING') {
+          e.preventDefault();
+          this.game.pauseGame();
+          return;
+        } else if (this.game.state === 'PAUSED') {
+          e.preventDefault();
+          this.game.resumeGame();
           return;
         }
       }
@@ -197,13 +206,16 @@ class Input {
   }
 
   initPointerLock() {
-    document.addEventListener('pointerlockchange', () => {
-      const isLocked = document.pointerLockElement === document.body;
-      this.isPointerLocked = isLocked;
+    const handleLockChange = () => {
+      const isLocked = document.pointerLockElement === document.body ||
+                       document.pointerLockElement === document.getElementById('canvas-container') ||
+                       (this.game.renderer && document.pointerLockElement === this.game.renderer.domElement);
+      const wasLocked = this.isPointerLocked;
+      this.isPointerLocked = !!isLocked;
 
-      if (isLocked) {
+      if (this.isPointerLocked) {
         // Se travou o mouse, entra no jogo
-        if (this.game.state !== 'PLAYING') {
+        if (this.game.state !== 'PLAYING' && this.game.state !== 'DEAD' && this.game.state !== 'INVENTORY' && this.game.state !== 'CRAFTING_TABLE') {
           this.game.state = 'PLAYING';
           this.game.ui.showInGameHUD();
         }
@@ -214,36 +226,61 @@ class Input {
           this.game.mining.stopMining();
         }
 
-        // Se estava no jogo ativo e destravou (ex: pressionou ESC), pausa
-        if (this.game.state === 'PLAYING') {
+        // Só pausa o jogo se o mouse ESTAVA realmente travado e o usuário destravou (ex: ESC)
+        if (wasLocked && this.game.state === 'PLAYING') {
           this.game.pauseGame();
         }
-        // Se estava em INVENTORY, CRAFTING_TABLE ou DEAD, permanece no estado correspondente
+      }
+    };
+
+    document.addEventListener('pointerlockchange', handleLockChange);
+    document.addEventListener('mozpointerlockchange', handleLockChange);
+    document.addEventListener('webkitpointerlockchange', handleLockChange);
+
+    document.addEventListener('pointerlockerror', () => {
+      this.isPointerLocked = false;
+    });
+  }
+
+  initCanvasClick() {
+    const canvasContainer = document.getElementById('canvas-container');
+    canvasContainer?.addEventListener('click', () => {
+      if (this.game.state === 'PLAYING' && !this.isPointerLocked) {
+        this.requestPointerLock();
       }
     });
   }
 
   requestPointerLock() {
     try {
-      const el = document.body;
+      const el = (this.game.renderer && this.game.renderer.domElement) || document.body;
       const fn = el.requestPointerLock || el.mozRequestPointerLock || el.webkitRequestPointerLock;
       if (fn) {
-        fn.call(el);
+        const promise = fn.call(el);
+        if (promise && typeof promise.catch === 'function') {
+          promise.catch(() => {});
+        }
       }
     } catch (e) {
-      console.warn('Erro ao requisitar Pointer Lock:', e);
+      // Ignora erro de requisição em ambientes restritos
     }
   }
 
   exitPointerLock() {
     try {
-      const fn = document.exitPointerLock || document.mozExitPointerLock || document.webkitExitPointerLock;
-      if (fn) {
-        fn.call(document);
+      if (document.pointerLockElement) {
+        const fn = document.exitPointerLock || document.mozExitPointerLock || document.webkitExitPointerLock;
+        if (fn) {
+          const promise = fn.call(document);
+          if (promise && typeof promise.catch === 'function') {
+            promise.catch(() => {});
+          }
+        }
       }
     } catch (e) {
-      console.warn('Erro ao sair do Pointer Lock:', e);
+      // Ignora erro ao sair de pointer lock
     }
+    this.isPointerLocked = false;
   }
 
   resetKeys() {

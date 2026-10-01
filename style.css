@@ -359,6 +359,15 @@ html, body {
   transform: translateY(0);
 }
 
+button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  filter: grayscale(0.6) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 /* Guia de Controles */
 .controls-container {
   background: rgba(15, 23, 42, 0.6);
@@ -444,11 +453,18 @@ html, body {
   justify-content: space-between;
   align-items: center;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .world-item-card:hover {
   background: rgba(51, 65, 85, 0.75);
   border-color: rgba(56, 189, 248, 0.4);
+}
+
+.world-item-card.selected {
+  background: rgba(14, 165, 233, 0.25);
+  border-color: #38bdf8;
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
 }
 
 .world-info {
@@ -516,6 +532,7 @@ html, body {
   display: flex;
   gap: 12px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* =============================================================================
@@ -726,6 +743,7 @@ html, body {
   visibility: hidden;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 999;
+  pointer-events: none;
 }
 
 .toast.visible {
@@ -1011,4 +1029,43 @@ html, body {
 .btn-respawn:hover {
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   box-shadow: 0 10px 25px -3px rgba(239, 68, 68, 0.7), 0 0 18px rgba(239, 68, 68, 0.5);
+}
+
+/* =============================================================================
+   ITEM FLUTUANTE DO CURSOR NO INVENTÁRIO
+   ============================================================================= */
+#inventory-cursor-item {
+  position: fixed;
+  pointer-events: none !important;
+  z-index: 10000;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#inventory-cursor-item.hidden {
+  display: none !important;
+}
+
+.cursor-item-icon {
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
+  pointer-events: none !important;
+}
+
+.cursor-item-count {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  pointer-events: none !important;
 }

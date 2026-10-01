@@ -44,6 +44,9 @@ class WorldManager {
     }
 
     this.currentWorldData = data;
+    if (this.game.ui) {
+      this.game.ui.selectedWorldId = data.id;
+    }
 
     // Define modo de jogo central no Game
     this.game.gameMode = data.mode === 'creative' ? 'creative' : 'survival';
@@ -117,6 +120,9 @@ class WorldManager {
    */
   createNewWorldAndEnter(name, seed, mode = 'survival') {
     const newWorldData = SaveSystem.createWorld(name, seed, mode);
+    if (this.game.ui) {
+      this.game.ui.selectedWorldId = newWorldData.id;
+    }
     this.loadWorld(newWorldData);
     this.game.enterGame();
   }
@@ -125,6 +131,7 @@ class WorldManager {
    * Sai do mundo atual e retorna para o menu de mundos
    */
   exitWorldToMenu() {
+    const exitedId = this.currentWorldData ? this.currentWorldData.id : null;
     this.saveCurrentWorld(true);
 
     if (this.game.world) {
@@ -132,6 +139,10 @@ class WorldManager {
       this.game.world = null;
     }
     this.currentWorldData = null;
+
+    if (this.game.ui && exitedId) {
+      this.game.ui.selectedWorldId = exitedId;
+    }
 
     // Retorna ao menu
     this.game.showWorldsMenu();

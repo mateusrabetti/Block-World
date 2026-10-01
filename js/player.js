@@ -80,15 +80,16 @@ class Player {
 
   // Encontra posição segura de spawn sobre o terreno em terra firme
   findSpawnPosition() {
-    const startX = Math.floor(this.position.x);
-    const startZ = Math.floor(this.position.z);
+    if (!this.world) return;
+    const startX = Math.floor(this.position.x || 64.5);
+    const startZ = Math.floor(this.position.z || 64.5);
     let bestX = startX;
     let bestZ = startZ;
     let bestY = 14;
     let foundSafe = false;
 
     // Busca em espiral um ponto de terra firme acima do nível da água com espaço livre
-    const maxRadius = 12;
+    const maxRadius = 32;
     for (let r = 0; r <= maxRadius && !foundSafe; r++) {
       for (let dx = -r; dx <= r && !foundSafe; dx++) {
         for (let dz = -r; dz <= r && !foundSafe; dz++) {
@@ -97,7 +98,7 @@ class Player {
           const tz = startZ + dz;
           if (tx < 4 || tx >= this.world.sizeX - 4 || tz < 4 || tz >= this.world.sizeZ - 4) continue;
 
-          for (let y = this.world.sizeY - 3; y >= 11; y--) {
+          for (let y = this.world.sizeY - 3; y >= 10; y--) {
             if (this.world.isSolid(tx, y, tz) &&
                 !this.world.isSolid(tx, y + 1, tz) &&
                 !this.world.isSolid(tx, y + 2, tz) &&
@@ -113,6 +114,19 @@ class Player {
       }
     }
 
+    if (!foundSafe) {
+      // Fallback: busca a coluna mais alta com bloco sólido
+      for (let y = this.world.sizeY - 3; y >= 1; y--) {
+        if (this.world.isSolid(startX, y, startZ) && !this.world.isSolid(startX, y + 1, startZ)) {
+          bestX = startX;
+          bestZ = startZ;
+          bestY = y;
+          foundSafe = true;
+          break;
+        }
+      }
+    }
+
     this.position.x = bestX + 0.5;
     this.position.z = bestZ + 0.5;
     this.position.y = bestY + 1.05;
@@ -123,25 +137,34 @@ class Player {
 
   // Restaura estado salvo do jogador
   restoreState(state) {
-    if (!state) {
+    if (!state || state.x === undefined || state.y === undefined || state.z === undefined) {
       this.findSpawnPosition();
-      return;
-    }
-    if (state.x !== undefined && state.y !== undefined && state.z !== undefined) {
+    } else {
       this.position.x = state.x;
       this.position.y = state.y;
       this.position.z = state.z;
-    } else {
-      this.findSpawnPosition();
     }
-    if (state.yaw !== undefined) this.yaw = state.yaw;
-    if (state.pitch !== undefined) this.pitch = state.pitch;
-    if (state.isFlying !== undefined) this.isFlying = state.isFlying;
-    else this.isFlying = false;
+
+    if (state) {
+      if (state.yaw !== undefined) this.yaw = state.yaw;
+      if (state.pitch !== undefined) this.pitch = state.pitch;
+      if (state.isFlying !== undefined) this.isFlying = state.isFlying;
+      else this.isFlying = false;
+    }
+
+    // Regra absoluta: sobrevivência não possui voo
+    if (window.game && window.game.gameMode !== 'creative') {
+      this.isFlying = false;
+    }
 
     this.velocity.x = 0;
     this.velocity.y = 0;
     this.velocity.z = 0;
+
+    // Se a posição restaurada colide com blocos (ou está enterrada), encontra spawn seguro
+    if (this.world && this.physics && this.physics.hasCollisionAt(this.position, this.world)) {
+      this.findSpawnPosition();
+    }
 
     if (this.selectionBox) {
       this.selectionBox.visible = false;
@@ -232,6 +255,10 @@ class Player {
 
   // Atualização por quadro (física, câmera e mira)
   update(dt, inputKeys) {
+    if (window.game && window.game.gameMode !== 'creative') {
+      this.isFlying = false;
+    }
+
     // 1. Processa movimentação horizontal
     let moveForward = 0;
     let moveRight = 0;

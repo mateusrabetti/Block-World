@@ -9,6 +9,9 @@ class UI {
     // Modo de jogo selecionado para novo mundo
     this.selectedMode = 'survival';
 
+    // ID do mundo atualmente selecionado na lista de mundos
+    this.selectedWorldId = null;
+
     // Cache de elementos do DOM
     this.initElements();
 
@@ -537,23 +540,12 @@ class UI {
   // GERENCIAMENTO DE MENUS E NAVEGAÇÃO
   // ===========================================================================
   initMenuEvents() {
-    // Menu Principal: JOGAR
-    document.getElementById('btn-main-play')?.addEventListener('click', (e) => {
-      const btn = e.currentTarget;
-      if (btn.disabled) return;
-      btn.disabled = true;
-      setTimeout(() => { btn.disabled = false; }, 600);
-
-      const worlds = SaveSystem.getWorlds();
-      if (worlds.length > 0) {
-        this.game.worldManager.loadWorld(worlds[0].id);
-        this.game.enterGame();
-      } else {
-        this.showCreateWorldScreen();
-      }
+    // Menu Principal: JOGAR -> Vai para o Menu de Mundos
+    document.getElementById('btn-main-play')?.addEventListener('click', () => {
+      this.showWorldsScreen();
     });
 
-    // Menu Principal: MUNDOS
+    // Menu Principal: MUNDOS -> Vai para o Menu de Mundos
     document.getElementById('btn-main-worlds')?.addEventListener('click', () => {
       this.showWorldsScreen();
     });
@@ -561,6 +553,13 @@ class UI {
     // Menu Principal: CONFIGURAÇÕES
     document.getElementById('btn-main-settings')?.addEventListener('click', () => {
       this.showSettingsScreen();
+    });
+
+    // Tela de Mundos: ENTRAR NO MUNDO SELECIONADO
+    document.getElementById('btn-worlds-play-selected')?.addEventListener('click', () => {
+      if (!this.selectedWorldId) return;
+      this.game.worldManager.loadWorld(this.selectedWorldId);
+      this.game.enterGame();
     });
 
     // Tela de Mundos: CRIAR NOVO MUNDO
@@ -757,14 +756,18 @@ class UI {
   }
 
   // Renderiza a lista de mundos salvos dinamicamente
+  // Renderiza a lista de mundos salvos dinamicamente
   renderWorldsList() {
     const listContainer = document.getElementById('worlds-list-container');
+    const playSelectedBtn = document.getElementById('btn-worlds-play-selected');
     if (!listContainer) return;
 
     listContainer.innerHTML = '';
     const worlds = SaveSystem.getWorlds();
 
     if (worlds.length === 0) {
+      this.selectedWorldId = null;
+      if (playSelectedBtn) playSelectedBtn.disabled = true;
       const emptyMsg = document.createElement('div');
       emptyMsg.className = 'worlds-empty-msg';
       emptyMsg.textContent = 'Nenhum mundo encontrado. Crie um novo mundo para começar!';
@@ -772,9 +775,16 @@ class UI {
       return;
     }
 
+    // Se nenhum mundo estiver selecionado ou o selecionado foi excluído, seleciona o primeiro
+    if (!this.selectedWorldId || !worlds.some(w => w.id === this.selectedWorldId)) {
+      this.selectedWorldId = worlds[0].id;
+    }
+    if (playSelectedBtn) playSelectedBtn.disabled = !this.selectedWorldId;
+
     worlds.forEach((world) => {
       const itemEl = document.createElement('div');
-      itemEl.className = 'world-item-card';
+      itemEl.className = 'world-item-card' + (world.id === this.selectedWorldId ? ' selected' : '');
+      itemEl.dataset.worldId = world.id;
 
       const infoDiv = document.createElement('div');
       infoDiv.className = 'world-info';
@@ -799,7 +809,9 @@ class UI {
       const enterBtn = document.createElement('button');
       enterBtn.className = 'btn-world-action btn-enter';
       enterBtn.textContent = 'ENTRAR';
-      enterBtn.addEventListener('click', () => {
+      enterBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.selectedWorldId = world.id;
         this.game.worldManager.loadWorld(world.id);
         this.game.enterGame();
       });
@@ -822,7 +834,37 @@ class UI {
       itemEl.appendChild(infoDiv);
       itemEl.appendChild(actionsDiv);
 
+      // Clique no card seleciona o mundo
+      itemEl.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-delete')) return;
+        this.selectedWorldId = world.id;
+        this.updateSelectedWorldCardUI();
+      });
+
+      // Duplo clique entra diretamente no mundo
+      itemEl.addEventListener('dblclick', () => {
+        this.selectedWorldId = world.id;
+        this.game.worldManager.loadWorld(world.id);
+        this.game.enterGame();
+      });
+
       listContainer.appendChild(itemEl);
+    });
+  }
+
+  updateSelectedWorldCardUI() {
+    const playSelectedBtn = document.getElementById('btn-worlds-play-selected');
+    if (playSelectedBtn) {
+      playSelectedBtn.disabled = !this.selectedWorldId;
+    }
+
+    const cards = document.querySelectorAll('#worlds-list-container .world-item-card');
+    cards.forEach(card => {
+      if (card.dataset.worldId === this.selectedWorldId) {
+        card.classList.add('selected');
+      } else {
+        card.classList.remove('selected');
+      }
     });
   }
 

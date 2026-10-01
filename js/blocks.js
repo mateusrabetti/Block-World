@@ -594,8 +594,8 @@ function getBlockIconDataUrl(id) {
   const tileIdx = def.iconTile;
   const canvas = ALL_TILES[tileIdx];
   if (canvas) {
-    BLOCK_ICON_CACHE[blockId] = canvas.toDataURL();
-    return BLOCK_ICON_CACHE[blockId];
+    BLOCK_ICON_CACHE[id] = canvas.toDataURL();
+    return BLOCK_ICON_CACHE[id];
   }
   return '';
 }

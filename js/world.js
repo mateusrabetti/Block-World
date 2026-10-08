@@ -1,5 +1,5 @@
 // =============================================================================
-// js/world.js - Gerenciamento do Mundo 128x32x128, Chunks, Raycasting DDA
+// js/world.js - Gerenciamento do Mundo Expandido (192x48x192), 144 Chunks, Cavernas 3D
 // =============================================================================
 
 class World {
@@ -7,34 +7,44 @@ class World {
     this.scene = scene;
     this.seed = seed;
 
-    // Dimensões do mundo: 128 x 32 x 128 blocos
-    this.sizeX = 128;
-    this.sizeY = 32;
-    this.sizeZ = 128;
+    // Dimensões do mundo: 192 x 48 x 192 blocos (Profundidade e área aumentadas)
+    this.sizeX = 192;
+    this.sizeY = 48;
+    this.sizeZ = 192;
 
-    // Grid de Chunks: 8 x 8 = 64 chunks (cada chunk 16x32x16)
-    this.numChunksX = this.sizeX / CHUNK_SIZE_X; // 8
-    this.numChunksZ = this.sizeZ / CHUNK_SIZE_Z; // 8
+    // Grid de Chunks: 12 x 12 = 144 chunks (Mais que o dobro dos 64 anteriores)
+    this.numChunksX = this.sizeX / CHUNK_SIZE_X; // 12
+    this.numChunksZ = this.sizeZ / CHUNK_SIZE_Z; // 12
 
     this.chunks = new Array(this.numChunksX * this.numChunksZ);
 
     // Dicionário de blocos modificados pelo jogador para persistência compacta
     this.modifiedBlocks = savedModifiedBlocks ? { ...savedModifiedBlocks } : {};
 
+    // Dados especiais de blocos tile (ex: fornalhas com inventário e combustível)
+    this.tileEntities = {};
+
     // Gerador de terreno procedural com seed
     this.terrain = new TerrainGenerator(this.seed);
+
+    // Último chunk onde o jogador estava para atualização de culling
+    this.lastPlayerChunkX = -999;
+    this.lastPlayerChunkZ = -999;
 
     // Inicializa a estrutura de chunks e adiciona à cena
     this.initChunks();
 
-    // Gera o terreno procedural
+    // Gera o terreno procedural (com relevo avançado e cavernas 3D)
     this.generateTerrain();
 
     // Aplica as modificações salvas do jogador
     this.applyModifiedBlocks();
 
-    // Constrói as malhas visuais de todos os chunks
+    // Constrói as malhas visuais de todos os chunks ordenados por proximidade ao centro
     this.buildAllChunkMeshes();
+
+    // Atualiza visibilidade inicial
+    this.updateChunkVisibility({ x: this.sizeX / 2, y: 24, z: this.sizeZ / 2 }, 6);
   }
 
   getChunkIndex(cx, cz) {
@@ -135,9 +145,43 @@ class World {
     return this.terrain.getBiome(x, z);
   }
 
-  // Gera terreno procedural para todo o mundo
+  /**
+   * Otimização: Culling de chunks por distância do jogador.
+   * Mantém alta taxa de quadros (FPS) renderizando somente chunks visíveis.
+   */
+  updateChunkVisibility(playerPos, renderDistanceInChunks = 6) {
+    if (!playerPos) return;
+
+    const pcx = Math.floor(playerPos.x / CHUNK_SIZE_X);
+    const pcz = Math.floor(playerPos.z / CHUNK_SIZE_Z);
+
+    if (pcx === this.lastPlayerChunkX && pcz === this.lastPlayerChunkZ) return;
+    this.lastPlayerChunkX = pcx;
+    this.lastPlayerChunkZ = pcz;
+
+    const maxDistSq = renderDistanceInChunks * renderDistanceInChunks;
+
+    for (let cx = 0; cx < this.numChunksX; cx++) {
+      for (let cz = 0; cz < this.numChunksZ; cz++) {
+        const chunk = this.getChunk(cx, cz);
+        if (!chunk) continue;
+
+        const dx = cx - pcx;
+        const dz = cz - pcz;
+        const distSq = dx * dx + dz * dz;
+
+        // Ativa visibilidade apenas dentro do raio de renderização
+        const isVisible = distSq <= maxDistSq;
+        if (chunk.group.visible !== isVisible) {
+          chunk.group.visible = isVisible;
+        }
+      }
+    }
+  }
+
+  // Gera terreno procedural para todo o mundo com profundidade e cavernas
   generateTerrain() {
-    const seaLevel = 10;
+    const seaLevel = 16;
     const potentialTrees = [];
 
     for (let x = 0; x < this.sizeX; x++) {
@@ -158,43 +202,65 @@ class World {
           if (y === 0) {
             // Camada 0: Bedrock inquebrável
             block = BLOCK_STONE;
-          } else if (y < groundHeight) {
-            // Subsolo
-            if (y < groundHeight - 3) {
-              // Pedra com veios de minérios
-              block = BLOCK_STONE;
+          } else if (y <= groundHeight) {
+            // Verifica se este ponto é escavado por uma caverna 3D
+            const isCaveAir = this.terrain.isCave(x, y, z, groundHeight, biome);
 
-              // Minério de ferro (mais profundo, Y: 1 a 12)
-              if (y <= 12 && this.terrain.localHash(x, y, z, 101) < 0.02) {
-                block = BLOCK_IRON_ORE;
-              }
-              // Minério de carvão (Y: 2 a 20)
-              else if (y <= 20 && this.terrain.localHash(x, y, z, 202) < 0.035) {
-                block = BLOCK_COAL_ORE;
-              }
+            if (isCaveAir) {
+              block = BLOCK_AIR;
             } else {
-              // Camadas próximas à superfície
-              if (biome === 'DESERT') {
-                block = BLOCK_SAND;
-              } else if (groundHeight <= seaLevel + 1) {
-                block = BLOCK_SAND; // Praia perto da água
+              // Terreno sólido
+              if (y === groundHeight) {
+                // Superfície
+                if (biome === 'DESERT') {
+                  block = BLOCK_SAND;
+                } else if (biome === 'MOUNTAIN' && groundHeight > 27) {
+                  block = BLOCK_STONE; // Picos rochosos expostos
+                } else if (groundHeight <= seaLevel + 1) {
+                  block = BLOCK_SAND; // Praia na linha d'água
+                } else {
+                  block = BLOCK_GRASS;
+                }
+              } else if (y >= groundHeight - 3) {
+                // Camadas logo abaixo da superfície
+                if (biome === 'DESERT') {
+                  block = BLOCK_SAND;
+                } else if (groundHeight <= seaLevel + 1) {
+                  block = BLOCK_SAND;
+                } else if (biome === 'MOUNTAIN' && groundHeight > 28) {
+                  block = BLOCK_STONE;
+                } else {
+                  block = BLOCK_DIRT;
+                }
               } else {
-                block = BLOCK_DIRT;
+                // Subsolo profundo e rochoso (Y < groundHeight - 3)
+                block = BLOCK_STONE;
+
+                // Distribuição vertical de minérios:
+                // Camadas profundas (Y: 1 a 14) -> maior abundância de ferro e carvão
+                if (y <= 14) {
+                  if (this.terrain.localHash(x, y, z, 101) < 0.038) {
+                    block = BLOCK_IRON_ORE;
+                  } else if (this.terrain.localHash(x, y, z, 202) < 0.035) {
+                    block = BLOCK_COAL_ORE;
+                  }
+                }
+                // Camadas médias (Y: 15 a 26) -> carvão abundante e veios ocasionais de ferro
+                else if (y <= 26) {
+                  if (this.terrain.localHash(x, y, z, 101) < 0.018) {
+                    block = BLOCK_IRON_ORE;
+                  } else if (this.terrain.localHash(x, y, z, 202) < 0.045) {
+                    block = BLOCK_COAL_ORE;
+                  }
+                }
+                // Subsolo superior (Y: 27+) -> pequenas quantidades de carvão
+                else if (this.terrain.localHash(x, y, z, 202) < 0.02) {
+                  block = BLOCK_COAL_ORE;
+                }
               }
-            }
-          } else if (y === groundHeight) {
-            // Superfície
-            if (biome === 'DESERT') {
-              block = BLOCK_SAND;
-            } else if (biome === 'MOUNTAIN' && groundHeight > 20) {
-              block = BLOCK_STONE; // Picos rochosos expostos
-            } else if (groundHeight <= seaLevel + 1) {
-              block = BLOCK_SAND; // Praia na linha da água
-            } else {
-              block = BLOCK_GRASS;
             }
           } else if (y <= seaLevel && y > groundHeight) {
-            // Água até o nível do mar
+            // Água até o nível do mar (16)
             block = BLOCK_WATER;
           }
 
@@ -205,9 +271,9 @@ class World {
         if (groundHeight > seaLevel + 1 && groundHeight + 6 < this.sizeY) {
           const isGrass = chunk.getLocalBlock(lx, groundHeight, lz) === BLOCK_GRASS;
           if (isGrass) {
-            if (biome === 'FOREST' && this.terrain.localHash(x, 0, z, 303) < 0.04) {
+            if (biome === 'FOREST' && this.terrain.localHash(x, 0, z, 303) < 0.045) {
               potentialTrees.push({ x, y: groundHeight, z });
-            } else if (biome === 'PLAINS' && this.terrain.localHash(x, 0, z, 303) < 0.008) {
+            } else if (biome === 'PLAINS' && this.terrain.localHash(x, 0, z, 303) < 0.007) {
               potentialTrees.push({ x, y: groundHeight, z });
             }
           }
@@ -240,10 +306,9 @@ class World {
 
   // Gera uma árvore com tronco de madeira e copa de folhas
   createTree(x, groundY, z) {
-    // Evita árvores nas bordas externas do mapa
     if (x < 3 || x >= this.sizeX - 3 || z < 3 || z >= this.sizeZ - 3) return;
 
-    const trunkHeight = 4 + Math.floor(this.terrain.localHash(x, groundY, z, 404) * 2); // 4 ou 5 blocos
+    const trunkHeight = 4 + Math.floor(this.terrain.localHash(x, groundY, z, 404) * 2);
 
     // Tronco
     for (let ty = 1; ty <= trunkHeight; ty++) {
@@ -253,7 +318,7 @@ class World {
       }
     }
 
-    // Copa de folhas (esfera/cubo aparado)
+    // Copa de folhas
     const leafBase = groundY + trunkHeight - 1;
     for (let lx = -2; lx <= 2; lx++) {
       for (let lz = -2; lz <= 2; lz++) {
@@ -276,7 +341,7 @@ class World {
     }
   }
 
-  // Define bloco direto sem notificar / marcar dirty individualmente durante geração inicial
+  // Define bloco direto sem notificar individualmente durante geração inicial
   rawSetBlock(x, y, z, type) {
     if (!this.inBounds(x, y, z)) return;
     const cx = Math.floor(x / CHUNK_SIZE_X);
@@ -302,16 +367,24 @@ class World {
     }
   }
 
-  // Constrói todas as malhas dos chunks
+  // Constrói todas as malhas dos chunks ordenados do centro para fora
   buildAllChunkMeshes() {
-    for (let i = 0; i < this.chunks.length; i++) {
-      this.chunks[i].rebuildMesh();
+    const centerX = this.numChunksX / 2;
+    const centerZ = this.numChunksZ / 2;
+
+    const sortedChunks = [...this.chunks].sort((a, b) => {
+      const da = (a.cx - centerX) ** 2 + (a.cz - centerZ) ** 2;
+      const db = (b.cx - centerX) ** 2 + (b.cz - centerZ) ** 2;
+      return da - db;
+    });
+
+    for (let i = 0; i < sortedChunks.length; i++) {
+      sortedChunks[i].rebuildMesh();
     }
   }
 
   /**
    * Algoritmo DDA Voxel Traversal para Raycasting de precisão.
-   * Permite mirar e quebrar blocos sob a água atravessando a água.
    */
   raycast(origin, direction, maxDistance = 5.0) {
     const px = origin.x;
@@ -340,7 +413,6 @@ class World {
     while (distance <= maxDistance) {
       if (this.inBounds(x, y, z)) {
         const block = this.getBlock(x, y, z);
-        // Não mira na água para que o jogador possa mirar nos blocos embaixo d'água
         if (block !== BLOCK_AIR && block !== BLOCK_WATER) {
           return {
             hit: true,

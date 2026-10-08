@@ -33,28 +33,34 @@ class Input {
       // Ignora se estiver digitando em campos de texto (como nome/seed do mundo)
       if (e.target.tagName === 'INPUT') return;
 
-      // Tecla 'E': Abre / Fecha Inventário ou Bancada
+      // Tecla 'E': Abre / Fecha Inventário, Catálogo Criativo, Bancada ou Fornalha
       if (e.code === 'KeyE') {
         e.preventDefault();
         if (this.game.state === 'PLAYING') {
           this.game.openInventory();
-        } else if (this.game.state === 'INVENTORY') {
+        } else if (this.game.state === 'INVENTORY' || this.game.state === 'CREATIVE_INVENTORY') {
           this.game.closeInventory();
         } else if (this.game.state === 'CRAFTING_TABLE') {
           this.game.closeCraftingTable();
+        } else if (this.game.state === 'FURNACE') {
+          if (this.game.furnace) this.game.furnace.closeUI();
         }
         return;
       }
 
-      // Tecla 'Escape': Fecha Inventário, Bancada, Pausa ou Resume
+      // Tecla 'Escape': Fecha menus abertos ou pausa
       if (e.code === 'Escape') {
-        if (this.game.state === 'INVENTORY') {
+        if (this.game.state === 'INVENTORY' || this.game.state === 'CREATIVE_INVENTORY') {
           e.preventDefault();
           this.game.closeInventory();
           return;
         } else if (this.game.state === 'CRAFTING_TABLE') {
           e.preventDefault();
           this.game.closeCraftingTable();
+          return;
+        } else if (this.game.state === 'FURNACE') {
+          e.preventDefault();
+          if (this.game.furnace) this.game.furnace.closeUI();
           return;
         } else if (this.game.state === 'PLAYING') {
           e.preventDefault();
@@ -164,7 +170,13 @@ class Input {
       if (!this.isPointerLocked || this.game.state !== 'PLAYING') return;
 
       if (e.button === 0) {
-        // Botão Esquerdo: Quebra Bloco (Instantâneo no Criativo, Mineração progressiva no Sobrevivência)
+        // 1. Tenta atacar entidade em foco primeiro (Requisitos 38 e 39)
+        const hitEntity = this.game.player.attackTargetOrEntity();
+        if (hitEntity) {
+          return;
+        }
+
+        // 2. Se não acertou entidade: Quebra Bloco (Instantâneo no Criativo, Mineração progressiva no Sobrevivência)
         if (this.game.gameMode === 'creative') {
           this.game.player.breakBlock();
           this.game.ui.updateHotbar();

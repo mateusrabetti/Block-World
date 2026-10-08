@@ -80,7 +80,32 @@ class WorldManager {
       this.game.health.setHealth(data.health !== undefined ? data.health : 20);
     }
 
-    // 6. Atualiza a UI para o novo mundo
+    // 6. Restaura estado do tempo e dia (Requisitos 13 e 16)
+    if (this.game.worldTime) {
+      if (data.worldTime) {
+        this.game.worldTime.timeOfDay = (typeof data.worldTime.timeOfDay === 'number') ? data.worldTime.timeOfDay : 180.0;
+        this.game.worldTime.currentDay = (typeof data.worldTime.currentDay === 'number') ? data.worldTime.currentDay : 1;
+      } else {
+        this.game.worldTime.timeOfDay = 180.0;
+        this.game.worldTime.currentDay = 1;
+      }
+    }
+
+    // 7. Restaura fornalhas do mundo (Requisito 26)
+    if (this.game.furnace) {
+      this.game.furnace.furnaces = data.furnaces ? JSON.parse(JSON.stringify(data.furnaces)) : {};
+      this.game.furnace.currentFurnacePos = null;
+    }
+
+    // 8. Reinicializa drops e entidades do mundo
+    if (this.game.drops) {
+      this.game.drops.clearAll();
+    }
+    if (this.game.entityManager) {
+      this.game.entityManager.initWorldEntities();
+    }
+
+    // 9. Atualiza a UI para o novo mundo
     this.game.ui.onWorldLoaded();
 
     return true;
@@ -108,6 +133,19 @@ class WorldManager {
     this.currentWorldData.selectedHotbarIndex = this.game.inventory.selectedHotbarIndex;
     this.currentWorldData.modifiedBlocks = this.game.world.modifiedBlocks;
 
+    // Salva tempo e dia do mundo
+    if (this.game.worldTime) {
+      this.currentWorldData.worldTime = {
+        timeOfDay: this.game.worldTime.timeOfDay,
+        currentDay: this.game.worldTime.currentDay
+      };
+    }
+
+    // Salva estado das fornalhas
+    if (this.game.furnace) {
+      this.currentWorldData.furnaces = this.game.furnace.furnaces;
+    }
+
     SaveSystem.saveWorld(this.currentWorldData);
 
     if (showNotification && this.game.ui) {
@@ -133,6 +171,13 @@ class WorldManager {
   exitWorldToMenu() {
     const exitedId = this.currentWorldData ? this.currentWorldData.id : null;
     this.saveCurrentWorld(true);
+
+    if (this.game.drops) {
+      this.game.drops.clearAll();
+    }
+    if (this.game.entityManager) {
+      this.game.entityManager.clearAll();
+    }
 
     if (this.game.world) {
       this.game.world.dispose();

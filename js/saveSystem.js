@@ -66,7 +66,12 @@ class SaveSystem {
       player: null,
       inventory: null, // Será preenchido com starter kit no primeiro carregamento
       selectedHotbarIndex: 0,
-      modifiedBlocks: {}
+      modifiedBlocks: {},
+      worldTime: {
+        timeOfDay: 180.0,
+        currentDay: 1
+      },
+      furnaces: {}
     };
 
     // Salva metadados
@@ -103,7 +108,12 @@ class SaveSystem {
           player: null,
           inventory: null,
           selectedHotbarIndex: 0,
-          modifiedBlocks: {}
+          modifiedBlocks: {},
+          worldTime: {
+            timeOfDay: 180.0,
+            currentDay: 1
+          },
+          furnaces: {}
         };
         localStorage.setItem(STORAGE_PREFIX_DATA + worldId, JSON.stringify(fallbackData));
         return fallbackData;

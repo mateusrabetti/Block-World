@@ -25,9 +25,10 @@
     </div>
   </div>
 
-  <!-- HUD Superior (Coordenadas, Bioma e Indicador de Voo) -->
+  <!-- HUD Superior (Dia, Coordenadas, Bioma e Indicador de Voo) -->
   <div id="top-hud" class="hidden">
-    <div id="hud-coords" class="hud-badge">XYZ: 64.0 / 18.0 / 64.0</div>
+    <div id="hud-day" class="hud-badge hud-badge-day">☀️ Dia 1</div>
+    <div id="hud-coords" class="hud-badge">XYZ: 96.0 / 24.0 / 96.0</div>
     <div id="hud-biome" class="hud-badge">Bioma: Floresta</div>
     <div id="hud-fly-badge" class="hud-badge hud-badge-fly hidden">✈ MODO VOO</div>
   </div>
@@ -287,7 +288,99 @@
     </div>
   </div>
 
-  <!-- 7. TELA DE MORTE (VOCÊ MORREU) -->
+  <!-- 7. TELA DA FORNALHA (FURNACE - Requisitos 18 a 26) -->
+  <div id="screen-furnace" class="screen-overlay hidden">
+    <div class="inventory-window furnace-window">
+      <div class="inventory-header">
+        <span class="inventory-title">FORNALHA</span>
+        <button id="btn-close-furnace" class="btn-close-inv" title="Fechar (E / ESC)">✕</button>
+      </div>
+
+      <!-- Painel de Fundição -->
+      <div class="furnace-panel">
+        <div class="furnace-column-left">
+          <div class="furnace-slot-container">
+            <span class="furnace-slot-label">ENTRADA</span>
+            <div id="furnace-input-slot" class="inv-slot" title="Item a fundir (Ferro ou Areia)">
+              <img class="slot-icon" alt="Entrada">
+              <span class="slot-count"></span>
+            </div>
+          </div>
+
+          <!-- Indicador de Fogo / Combustível -->
+          <div class="furnace-fire-container" title="Chama do Combustível">
+            <div class="furnace-fire-track">
+              <div id="furnace-fire-fill" class="furnace-fire-fill">🔥</div>
+            </div>
+          </div>
+
+          <div class="furnace-slot-container">
+            <span class="furnace-slot-label">COMBUSTÍVEL</span>
+            <div id="furnace-fuel-slot" class="inv-slot" title="Combustível (Carvão)">
+              <img class="slot-icon" alt="Combustível">
+              <span class="slot-count"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="furnace-column-middle">
+          <div class="furnace-progress-track">
+            <div id="furnace-cook-progress" class="furnace-progress-bar"></div>
+          </div>
+          <div class="furnace-arrow">➔</div>
+        </div>
+
+        <div class="furnace-column-right">
+          <div class="furnace-slot-container">
+            <span class="furnace-slot-label">SAÍDA</span>
+            <div id="furnace-output-slot" class="inv-slot craft-output-slot" title="Resultado da Fundição">
+              <img class="slot-icon" alt="Resultado">
+              <span class="slot-count"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="inventory-section-label">Mochila</div>
+      <div id="furnace-main-grid" class="inv-grid"></div>
+
+      <div class="inventory-section-label">Barra de Acesso Rápido (Hotbar)</div>
+      <div id="furnace-hotbar-grid" class="inv-grid inv-grid-hotbar"></div>
+
+      <div class="inventory-footer-tip">
+        Fundição: Minério de Ferro → Barra de Ferro • Areia → Vidro • Combustível: Carvão
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. TELA DO INVENTÁRIO CRIATIVO (Requisitos 27 a 29) -->
+  <div id="screen-creative-inventory" class="screen-overlay hidden">
+    <div class="inventory-window creative-window">
+      <div class="inventory-header">
+        <span class="inventory-title">CATÁLOGO CRIATIVO</span>
+        <button id="btn-close-creative-inv" class="btn-close-inv" title="Fechar (E / ESC)">✕</button>
+      </div>
+
+      <!-- Abas de Categorias -->
+      <div class="creative-tabs-bar">
+        <button id="tab-creative-blocks" class="btn-creative-tab active">📦 BLOCOS</button>
+        <button id="tab-creative-tools" class="btn-creative-tab">⚔️ FERRAMENTAS & ARMAS</button>
+        <button id="tab-creative-items" class="btn-creative-tab">🍖 ITENS & RECURSOS</button>
+      </div>
+
+      <!-- Catálogo de Itens -->
+      <div id="creative-catalog-grid" class="creative-catalog-grid"></div>
+
+      <div class="inventory-section-label">Barra de Acesso Rápido (Hotbar)</div>
+      <div id="creative-hotbar-grid" class="inv-grid inv-grid-hotbar"></div>
+
+      <div class="inventory-footer-tip">
+        Modo Criativo: Clique em qualquer item do catálogo para pegá-lo livremente sem custo de materiais.
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. TELA DE MORTE (VOCÊ MORREU) -->
   <div id="screen-death" class="screen-overlay hidden screen-death-overlay">
     <div class="overlay-modal modal-death">
       <div class="title-container">
@@ -306,7 +399,7 @@
     </div>
   </div>
 
-  <!-- 8. TELA DE CONFIGURAÇÕES -->
+  <!-- 10. TELA DE CONFIGURAÇÕES -->
   <div id="screen-settings" class="screen-overlay hidden">
     <div class="overlay-modal modal-settings">
       <div class="title-container">
@@ -314,13 +407,18 @@
       </div>
 
       <div class="form-group">
-        <label>Distância do Mundo: 128 x 128 Blocos (64 Chunks)</label>
-        <p class="form-hint">Renderização ultra-otimizada via BufferGeometry com culling de faces.</p>
+        <label>Distância do Mundo: 192 x 192 Blocos (144 Chunks)</label>
+        <p class="form-hint">Renderização ultra-otimizada com culling de chunks por distância e BufferGeometry.</p>
+      </div>
+
+      <div class="form-group">
+        <label>Ciclo de Dia e Noite: Ativo (30 Minutos)</label>
+        <p class="form-hint">15 minutos de dia e 15 minutos de noite com transição dinâmica de iluminação e céu.</p>
       </div>
 
       <div class="form-group">
         <label>Áudio Procedural: Ativo (Web Audio API)</label>
-        <p class="form-hint">Efeitos sonoros gerados em tempo real sem arquivos externos.</p>
+        <p class="form-hint">Efeitos sonoros de mineração, passos, golpes e coleta gerados em tempo real.</p>
       </div>
 
       <button id="btn-settings-close" class="btn-primary" style="margin-top: 15px;">
@@ -345,7 +443,15 @@
   <script src="js/items.js"></script>
   <script src="js/recipes.js"></script>
   <script src="js/crafting.js"></script>
+  <script src="js/drops.js"></script>
   <script src="js/mining.js"></script>
+  <script src="js/furnace.js"></script>
+  <script src="js/arm.js"></script>
+  <script src="js/entities/entity.js"></script>
+  <script src="js/entities/pig.js"></script>
+  <script src="js/entities/bandit.js"></script>
+  <script src="js/entities/entityManager.js"></script>
+  <script src="js/time.js"></script>
   <script src="js/health.js"></script>
   <script src="js/terrain.js"></script>
   <script src="js/chunk.js"></script>

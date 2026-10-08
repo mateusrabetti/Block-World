@@ -139,8 +139,9 @@ class MiningSystem {
       this.game.player.playSound('break');
     }
 
-    // Calcula e adiciona os drops ao inventário
-    this.handleDrops(blockType, def);
+    // Calcula e adiciona os drops ao mundo
+    const dropPos = { x: x + 0.5, y: y + 0.5, z: z + 0.5 };
+    this.handleDrops(blockType, def, dropPos);
 
     // Consome durabilidade da ferramenta utilizada
     this.consumeToolDurability();
@@ -157,7 +158,7 @@ class MiningSystem {
   }
 
   // Sistema de drops dos blocos
-  handleDrops(blockType, def) {
+  handleDrops(blockType, def, dropPos = null) {
     if (!def) return;
 
     const heldItem = this.game.inventory.getSelectedHotbarItem();
@@ -174,26 +175,41 @@ class MiningSystem {
       return;
     }
 
+    const px = dropPos ? dropPos.x : (this.targetPos ? this.targetPos.x + 0.5 : 96.5);
+    const py = dropPos ? dropPos.y : (this.targetPos ? this.targetPos.y + 0.5 : 24.5);
+    const pz = dropPos ? dropPos.z : (this.targetPos ? this.targetPos.z + 0.5 : 96.5);
+
+    const giveDrop = (itemId, count = 1) => {
+      if (this.game.drops) {
+        this.game.drops.spawnDrop(px, py, pz, itemId, count);
+      } else {
+        this.game.inventory.addItem(itemId, count);
+      }
+    };
+
     // Regras específicas de drops:
     if (blockType === BLOCK_COAL_ORE) {
       // Minério de Carvão dropa Carvão (Item)
-      this.game.inventory.addItem(ITEM_COAL, 1);
+      giveDrop(ITEM_COAL, 1);
     } else if (blockType === BLOCK_LEAVES) {
       // Folhas: chance de graveto ou folhas
       const rand = Math.random();
       if (rand < 0.35) {
-        this.game.inventory.addItem(ITEM_STICK, 1);
+        giveDrop(ITEM_STICK, 1);
       } else if (rand < 0.6) {
-        this.game.inventory.addItem(BLOCK_LEAVES, 1);
+        giveDrop(BLOCK_LEAVES, 1);
       }
     } else if (blockType === BLOCK_STONE) {
       // Pedra exige picareta para dropar
-      this.game.inventory.addItem(BLOCK_STONE, 1);
+      giveDrop(BLOCK_STONE, 1);
     } else if (blockType === BLOCK_IRON_ORE) {
-      // Minério de Ferro dropa o minério para ser processado
-      this.game.inventory.addItem(BLOCK_IRON_ORE, 1);
+      // Minério de Ferro dropa o minério para ser processado na Fornalha
+      giveDrop(BLOCK_IRON_ORE, 1);
+    } else if (blockType === BLOCK_FURNACE) {
+      // Fornalha quebrada dropa ela mesma
+      giveDrop(BLOCK_FURNACE, 1);
     } else if (def.dropItem !== null && def.dropItem !== undefined) {
-      this.game.inventory.addItem(def.dropItem, 1);
+      giveDrop(def.dropItem, 1);
     }
   }
 

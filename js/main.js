@@ -22,11 +22,15 @@ class Game {
 
     // 3. Inicializa os subsistemas modulares
     this.inventory = new Inventory();
+    this.drops = new DropManager(this);
     this.crafting = new CraftingController(this);
     this.mining = new MiningSystem(this);
+    this.furnace = new FurnaceManager(this);
     this.physics = new Physics();
     this.player = new Player(this.camera, null, this.physics, this.scene, this.inventory);
     this.health = new HealthSystem(this);
+    this.worldTime = new WorldTime(this);
+    this.entityManager = new EntityManager(this);
     this.worldManager = new WorldManager(this);
     this.ui = new UI(this);
     this.input = new Input(this);
@@ -46,14 +50,14 @@ class Game {
     // 1. Cena
     this.scene = new THREE.Scene();
 
-    // Céu azul e névoa atmosférica estendida para o mundo de 128x128
+    // Céu azul e névoa atmosférica estendida para o mundo de 192x192 (144 chunks)
     const skyColor = new THREE.Color(0x7db4f5);
     this.scene.background = skyColor;
-    this.scene.fog = new THREE.Fog(skyColor, 40, 85);
+    this.scene.fog = new THREE.Fog(skyColor, 50, 140);
 
-    // 2. Câmera
+    // 2. Câmera (alcance estendido para renderização de chunks maiores)
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 150);
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 220);
 
     // 3. Renderizador WebGL
     this.renderer = new THREE.WebGLRenderer({
@@ -108,20 +112,31 @@ class Game {
     this.ui.showPauseMenu();
   }
 
-  // Abre a tela de inventário
+  // Abre a tela de inventário (Criativo ou Sobrevivência)
   openInventory() {
+    if (this.gameMode === 'creative') {
+      this.state = 'CREATIVE_INVENTORY';
+      this.input.exitPointerLock();
+      this.ui.showCreativeInventory();
+      return;
+    }
+
     this.state = 'INVENTORY';
     this.input.exitPointerLock();
     this.ui.showInventory();
   }
 
-  // Fecha o inventário e retorna ao jogo
+  // Fecha o inventário / fornalha e retorna ao jogo
   closeInventory() {
     if (this.crafting) {
       this.crafting.returnGridItems(false);
     }
     if (this.inventory) {
       this.inventory.returnCursorItem();
+    }
+    if (this.furnace && this.furnace.currentFurnacePos) {
+      this.furnace.closeUI();
+      return;
     }
     this.enterGame();
   }
@@ -157,20 +172,55 @@ class Game {
 
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
-    if (this.state === 'PLAYING' && this.world) {
-      this.player.update(dt, this.input.keys);
+    if (this.world) {
+      if (this.state === 'PLAYING') {
+        // Atualiza ciclo dia/noite e iluminação
+        if (this.worldTime) {
+          this.worldTime.update(dt);
+        }
 
-      // Atualiza mineração progressiva
-      if (this.mining) {
-        this.mining.update(dt);
+        // Atualiza jogador e física
+        this.player.update(dt, this.input.keys);
+
+        // Atualiza mineração progressiva
+        if (this.mining) {
+          this.mining.update(dt);
+        }
+
+        // Atualiza saúde e dano de queda
+        if (this.health) {
+          this.health.update(dt);
+        }
+
+        // Atualiza drops no mundo
+        if (this.drops) {
+          this.drops.update(dt);
+        }
+
+        // Atualiza processamento das fornalhas
+        if (this.furnace) {
+          this.furnace.update(dt);
+        }
+
+        // Atualiza entidades vivas (porcos e bandidos)
+        if (this.entityManager) {
+          this.entityManager.update(dt);
+        }
+
+        this.ui.update();
+      } else if (
+        this.state === 'INVENTORY' ||
+        this.state === 'CREATIVE_INVENTORY' ||
+        this.state === 'CRAFTING_TABLE' ||
+        this.state === 'FURNACE'
+      ) {
+        // Continua rodando processos de fundo enquanto menus de inventário/fornalha estão abertos
+        if (this.worldTime) this.worldTime.update(dt);
+        if (this.furnace) this.furnace.update(dt);
+        if (this.drops) this.drops.update(dt);
+        if (this.entityManager) this.entityManager.update(dt);
+        this.ui.update();
       }
-
-      // Atualiza saúde e dano de queda
-      if (this.health) {
-        this.health.update(dt);
-      }
-
-      this.ui.update();
     }
 
     this.renderer.render(this.scene, this.camera);

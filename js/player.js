@@ -10,8 +10,8 @@ class Player {
     this.scene = scene;
     this.inventory = inventory;
 
-    // Posição no mundo (centro do mapa 128x128)
-    this.position = { x: 64.5, y: 20.0, z: 64.5 };
+    // Posição no mundo (centro do mapa 192x192)
+    this.position = { x: 96.5, y: 24.0, z: 96.5 };
     this.velocity = { x: 0, y: 0, z: 0 };
 
     // Orientação da visão
@@ -41,6 +41,9 @@ class Player {
 
     // Áudio procedural Web Audio API
     this.initAudio();
+
+    // Braço em primeira pessoa
+    this.arm = new FirstPersonArm(window.game, this.camera);
 
     // Sincroniza a câmera
     this.updateCamera();
@@ -81,24 +84,24 @@ class Player {
   // Encontra posição segura de spawn sobre o terreno em terra firme
   findSpawnPosition() {
     if (!this.world) return;
-    const startX = Math.floor(this.position.x || 64.5);
-    const startZ = Math.floor(this.position.z || 64.5);
+    const startX = Math.floor(this.position.x || (this.world.sizeX / 2));
+    const startZ = Math.floor(this.position.z || (this.world.sizeZ / 2));
     let bestX = startX;
     let bestZ = startZ;
-    let bestY = 14;
+    let bestY = 20;
     let foundSafe = false;
 
     // Busca em espiral um ponto de terra firme acima do nível da água com espaço livre
-    const maxRadius = 32;
+    const maxRadius = 36;
     for (let r = 0; r <= maxRadius && !foundSafe; r++) {
       for (let dx = -r; dx <= r && !foundSafe; dx++) {
         for (let dz = -r; dz <= r && !foundSafe; dz++) {
           if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
           const tx = startX + dx;
           const tz = startZ + dz;
-          if (tx < 4 || tx >= this.world.sizeX - 4 || tz < 4 || tz >= this.world.sizeZ - 4) continue;
+          if (tx < 6 || tx >= this.world.sizeX - 6 || tz < 6 || tz >= this.world.sizeZ - 6) continue;
 
-          for (let y = this.world.sizeY - 3; y >= 10; y--) {
+          for (let y = this.world.sizeY - 4; y >= 14; y--) {
             if (this.world.isSolid(tx, y, tz) &&
                 !this.world.isSolid(tx, y + 1, tz) &&
                 !this.world.isSolid(tx, y + 2, tz) &&
@@ -116,7 +119,7 @@ class Player {
 
     if (!foundSafe) {
       // Fallback: busca a coluna mais alta com bloco sólido
-      for (let y = this.world.sizeY - 3; y >= 1; y--) {
+      for (let y = this.world.sizeY - 4; y >= 1; y--) {
         if (this.world.isSolid(startX, y, startZ) && !this.world.isSolid(startX, y + 1, startZ)) {
           bestX = startX;
           bestZ = startZ;
@@ -337,6 +340,55 @@ class Player {
 
     // 4. Raycasting para detecção do bloco em foco
     this.updateTargetBlock();
+
+    // 5. Culling de Chunks por distância do jogador (Otimização para 144 chunks)
+    if (this.world) {
+      this.world.updateChunkVisibility(this.position, 6);
+    }
+
+    // 6. Atualiza o braço em primeira pessoa e suas animações
+    if (this.arm) {
+      const isMoving = Math.abs(this.velocity.x) > 0.1 || Math.abs(this.velocity.z) > 0.1;
+      const isMining = window.game && window.game.mining && window.game.mining.isMining;
+      this.arm.update(dt, isMoving, isMining);
+    }
+  }
+
+  // Raycast de combate: ataca entidade em foco à frente (Requisitos 38, 39, 40)
+  attackTargetOrEntity() {
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+
+    // Busca entidade à frente (< 3.2m)
+    const entity = window.game.entityManager ? window.game.entityManager.findEntityInCrosshair(this.camera.position, dir, 3.2) : null;
+
+    if (entity) {
+      const heldItem = this.inventory.getSelectedHotbarItem();
+      const def = heldItem ? getItemOrBlockDef(heldItem.id) : null;
+
+      // Cálculo de dano conforme requisitos 40 e 58:
+      // Madeira = 4, Pedra = 5, Ferro = 6, Ferramentas = 2..4, Mão = 1
+      let damage = 1;
+      if (def && def.damage) {
+        damage = def.damage;
+      }
+
+      entity.takeDamage(damage, 'player');
+
+      // Animação de corte/ataque do braço
+      if (this.arm) {
+        this.arm.triggerSwing();
+      }
+
+      // Reduz durabilidade da espada / ferramenta
+      if (heldItem && def?.isTool && window.game.mining) {
+        window.game.mining.consumeToolDurability();
+      }
+
+      return true; // Acertou entidade
+    }
+
+    return false; // Nenhuma entidade atingida
   }
 
   // Atualiza bloco sob a mira
@@ -360,21 +412,29 @@ class Player {
     if (!this.targetBlock) return;
 
     const { x, y, z } = this.targetBlock.block;
-    // Não quebrar bedrock (y === 0)
-    if (y === 0) return;
+    if (y === 0) return; // Bedrock inquebrável
 
     const blockType = this.world.getBlock(x, y, z);
     const def = BLOCK_TYPES[blockType];
     if (!def || !def.breakable) return;
 
+    // Se estiver quebrando uma fornalha, remove seus dados e gera drops internos
+    if (blockType === BLOCK_FURNACE && window.game.furnace) {
+      window.game.furnace.removeFurnaceAt(x, y, z);
+    }
+
     // Altera no mundo
     this.world.setBlock(x, y, z, BLOCK_AIR);
     this.playSound('break');
 
-    // No modo Sobrevivência, utiliza a regra de drops; no Criativo, não é necessário coletar
+    if (this.arm) {
+      this.arm.triggerSwing();
+    }
+
+    // Drops 3D no modo sobrevivência
     if (window.game && window.game.gameMode === 'survival') {
       if (window.game.mining) {
-        window.game.mining.handleDrops(blockType, def);
+        window.game.mining.handleDrops(blockType, def, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
       } else if (def.dropItem !== null && def.dropItem !== undefined) {
         this.inventory.addItem(def.dropItem, 1);
       }
@@ -387,7 +447,19 @@ class Player {
   placeBlock() {
     if (!this.targetBlock) return;
 
-    // 1. Interação com a Bancada de Trabalho: abre a grade 3x3 de crafting
+    // 1. Interação com a Fornalha: abre a interface de fundição (Requisito 21)
+    if (this.targetBlock.type === BLOCK_FURNACE) {
+      if (window.game && window.game.furnace) {
+        window.game.furnace.openUI(
+          this.targetBlock.block.x,
+          this.targetBlock.block.y,
+          this.targetBlock.block.z
+        );
+        return;
+      }
+    }
+
+    // 2. Interação com a Bancada de Trabalho: abre a grade 3x3 de crafting
     if (this.targetBlock.type === BLOCK_CRAFTING_TABLE) {
       if (window.game && typeof window.game.openCraftingTable === 'function') {
         window.game.openCraftingTable();
@@ -395,7 +467,7 @@ class Player {
       }
     }
 
-    // 2. Obtém o item atualmente selecionado na Hotbar
+    // 3. Obtém o item atualmente selecionado na Hotbar
     const hotbarItem = this.inventory.getSelectedHotbarItem();
     if (!hotbarItem || hotbarItem.count <= 0) return;
 
@@ -409,19 +481,24 @@ class Player {
     const placeY = target.y + normal.y;
     const placeZ = target.z + normal.z;
 
-    // 3. Limites do mundo
+    // 4. Limites do mundo
     if (!this.world.inBounds(placeX, placeY, placeZ)) return;
 
-    // 4. Não sobrepor o corpo do jogador
+    // 5. Não sobrepor o corpo do jogador
     if (this.physics.overlapsPlayer(placeX, placeY, placeZ, this.position)) {
       return;
     }
 
-    // 5. Posiciona o bloco no mundo
+    // 6. Posiciona o bloco no mundo
     const placed = this.world.setBlock(placeX, placeY, placeZ, hotbarItem.id);
     if (placed) {
       this.playSound('place');
-      // 6. Consome 1 unidade apenas no modo Sobrevivência (modo Criativo tem blocos infinitos)
+
+      if (this.arm) {
+        this.arm.triggerPunch();
+      }
+
+      // Consome 1 unidade apenas no modo Sobrevivência
       if (window.game && window.game.gameMode !== 'creative') {
         this.inventory.consumeSelectedItem();
       }

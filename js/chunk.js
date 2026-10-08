@@ -3,7 +3,7 @@
 // =============================================================================
 
 const CHUNK_SIZE_X = 16;
-const CHUNK_SIZE_Y = 32;
+const CHUNK_SIZE_Y = 48;
 const CHUNK_SIZE_Z = 16;
 
 class Chunk {

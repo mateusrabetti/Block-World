@@ -127,6 +127,40 @@ class RecipeManager {
       [ITEM_STICK],
       [ITEM_STICK]
     ], { id: ITEM_IRON_SHOVEL, count: 1, durability: 250, maxDurability: 250 });
+
+    // -------------------------------------------------------------------------
+    // RECEITAS DE ESPADAS (GRADE 3x3 OU 1x3) - Requisito 41
+    // -------------------------------------------------------------------------
+
+    // Espada de Madeira (Dano 4)
+    this.addShapedRecipe('wooden_sword', [
+      [BLOCK_PLANKS],
+      [BLOCK_PLANKS],
+      [ITEM_STICK]
+    ], { id: ITEM_WOODEN_SWORD, count: 1, durability: 60, maxDurability: 60 });
+
+    // Espada de Pedra (Dano 5)
+    this.addShapedRecipe('stone_sword', [
+      [BLOCK_STONE],
+      [BLOCK_STONE],
+      [ITEM_STICK]
+    ], { id: ITEM_STONE_SWORD, count: 1, durability: 132, maxDurability: 132 });
+
+    // Espada de Ferro (Dano 6)
+    this.addShapedRecipe('iron_sword', [
+      [ITEM_IRON_INGOT],
+      [ITEM_IRON_INGOT],
+      [ITEM_STICK]
+    ], { id: ITEM_IRON_SWORD, count: 1, durability: 250, maxDurability: 250 });
+
+    // -------------------------------------------------------------------------
+    // RECEITA DA FORNALHA (GRADE 3x3) - Requisito 19
+    // -------------------------------------------------------------------------
+    this.addShapedRecipe('furnace', [
+      [BLOCK_STONE, BLOCK_STONE, BLOCK_STONE],
+      [BLOCK_STONE, null,        BLOCK_STONE],
+      [BLOCK_STONE, BLOCK_STONE, BLOCK_STONE]
+    ], { id: BLOCK_FURNACE, count: 1 });
   }
 
   addShapelessRecipe(id, ingredients, result) {

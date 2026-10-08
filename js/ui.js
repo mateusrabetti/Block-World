@@ -19,6 +19,7 @@ class UI {
     this.buildHotbarDOM();
     this.buildInventoryDOM();
     this.buildCraftingTableDOM();
+    this.buildCreativeInventoryDOM();
 
     // Eventos de clique nos menus e seletores
     this.initMenuEvents();
@@ -35,18 +36,26 @@ class UI {
     this.pauseMenuEl = document.getElementById('screen-pause');
     this.inventoryOverlayEl = document.getElementById('screen-inventory');
     this.craftingTableOverlayEl = document.getElementById('screen-crafting-table');
+    this.furnaceOverlayEl = document.getElementById('screen-furnace');
+    this.creativeInventoryOverlayEl = document.getElementById('screen-creative-inventory');
     this.deathScreenEl = document.getElementById('screen-death');
     this.settingsMenuEl = document.getElementById('screen-settings');
 
     // Elementos do HUD
     this.crosshairEl = document.getElementById('crosshair');
     this.topHudEl = document.getElementById('top-hud');
+    this.hudDayEl = document.getElementById('hud-day');
     this.coordsEl = document.getElementById('hud-coords');
     this.biomeEl = document.getElementById('hud-biome');
     this.flyBadgeEl = document.getElementById('hud-fly-badge');
     this.hotbarWrapperEl = document.getElementById('hotbar-wrapper');
     this.hotbarContainer = document.getElementById('hotbar');
     this.selectedBlockName = document.getElementById('selected-block-name');
+
+    // Catálogo Criativo
+    this.creativeCatalogGrid = document.getElementById('creative-catalog-grid');
+    this.creativeHotbarGrid = document.getElementById('creative-hotbar-grid');
+    this.currentCreativeTab = 'blocks';
 
     // Barra de progresso de mineração
     this.miningProgressContainer = document.getElementById('mining-progress-container');
@@ -350,6 +359,108 @@ class UI {
         tableHotbarGrid.appendChild(slotEl);
       }
     }
+  }
+
+  // ===========================================================================
+  // CONSTRUÇÃO E GERENCIAMENTO DO INVENTÁRIO CRIATIVO (Requisitos 27 a 29)
+  // ===========================================================================
+  buildCreativeInventoryDOM() {
+    // Botão de fechar (X)
+    document.getElementById('btn-close-creative-inv')?.addEventListener('click', () => {
+      this.game.closeInventory();
+    });
+
+    // Abas de categorias
+    const tabBlocks = document.getElementById('tab-creative-blocks');
+    const tabTools = document.getElementById('tab-creative-tools');
+    const tabItems = document.getElementById('tab-creative-items');
+
+    const switchTab = (tabName, clickedBtn) => {
+      this.currentCreativeTab = tabName;
+      document.querySelectorAll('.btn-creative-tab').forEach(b => b.classList.remove('active'));
+      clickedBtn?.classList.add('active');
+      this.renderCreativeCatalog(tabName);
+    };
+
+    tabBlocks?.addEventListener('click', () => switchTab('blocks', tabBlocks));
+    tabTools?.addEventListener('click', () => switchTab('tools', tabTools));
+    tabItems?.addEventListener('click', () => switchTab('items', tabItems));
+
+    // Constrói os slots da Hotbar no rodapé do inventário criativo
+    if (this.creativeHotbarGrid) {
+      this.creativeHotbarGrid.innerHTML = '';
+      for (let i = 0; i < 9; i++) {
+        const slotEl = this.createInventorySlotElement(i);
+        this.creativeHotbarGrid.appendChild(slotEl);
+      }
+    }
+  }
+
+  // Renderiza o catálogo de itens da categoria escolhida
+  renderCreativeCatalog(category = 'blocks') {
+    if (!this.creativeCatalogGrid) return;
+    this.creativeCatalogGrid.innerHTML = '';
+
+    let items = [];
+    if (category === 'blocks') {
+      items = [
+        BLOCK_GRASS, BLOCK_DIRT, BLOCK_STONE, BLOCK_SAND, BLOCK_WOOD,
+        BLOCK_LEAVES, BLOCK_PLANKS, BLOCK_BRICKS, BLOCK_GLASS,
+        BLOCK_COAL_ORE, BLOCK_IRON_ORE, BLOCK_CRAFTING_TABLE, BLOCK_FURNACE
+      ];
+    } else if (category === 'tools') {
+      items = [
+        ITEM_WOODEN_PICKAXE, ITEM_STONE_PICKAXE, ITEM_IRON_PICKAXE,
+        ITEM_WOODEN_AXE, ITEM_STONE_AXE, ITEM_IRON_AXE,
+        ITEM_WOODEN_SHOVEL, ITEM_STONE_SHOVEL, ITEM_IRON_SHOVEL,
+        ITEM_WOODEN_SWORD, ITEM_STONE_SWORD, ITEM_IRON_SWORD
+      ];
+    } else if (category === 'items') {
+      items = [
+        ITEM_COAL, ITEM_IRON_INGOT, ITEM_STICK, ITEM_PORKCHOP
+      ];
+    }
+
+    items.forEach(id => {
+      const slotEl = document.createElement('div');
+      slotEl.className = 'inv-slot creative-catalog-slot';
+      slotEl.title = getItemOrBlockName(id);
+
+      const imgEl = document.createElement('img');
+      imgEl.className = 'slot-icon';
+      imgEl.src = getItemOrBlockIcon(id);
+      imgEl.style.display = 'block';
+
+      slotEl.appendChild(imgEl);
+
+      // Clique no catálogo dá o item diretamente ao jogador (Requisito 29)
+      slotEl.addEventListener('click', () => {
+        const def = getItemOrBlockDef(id);
+        const count = (def && def.isTool) ? 1 : 64;
+
+        this.game.inventory.addItem(id, count);
+        if (this.game.player) {
+          this.game.player.playSound('place');
+        }
+
+        this.updateHotbar();
+        this.updateInventory();
+        this.showToast(`Adicionado: ${getItemOrBlockName(id)}`);
+      });
+
+      this.creativeCatalogGrid.appendChild(slotEl);
+    });
+  }
+
+  showCreativeInventory() {
+    this.hideAllMenus();
+    this.game.state = 'CREATIVE_INVENTORY';
+    this.renderCreativeCatalog(this.currentCreativeTab || 'blocks');
+    this.updateInventory();
+    this.updateHotbar();
+
+    if (this.hotbarWrapperEl) this.hotbarWrapperEl.classList.remove('hidden');
+    if (this.creativeInventoryOverlayEl) this.creativeInventoryOverlayEl.classList.remove('hidden');
   }
 
   createInventorySlotElement(index) {
@@ -670,6 +781,8 @@ class UI {
     this.pauseMenuEl?.classList.add('hidden');
     this.inventoryOverlayEl?.classList.add('hidden');
     this.craftingTableOverlayEl?.classList.add('hidden');
+    this.furnaceOverlayEl?.classList.add('hidden');
+    this.creativeInventoryOverlayEl?.classList.add('hidden');
     this.deathScreenEl?.classList.add('hidden');
     this.settingsMenuEl?.classList.add('hidden');
 
@@ -718,6 +831,12 @@ class UI {
   }
 
   showInventory() {
+    // No modo Criativo abre o Catálogo Criativo especial (Requisitos 27 a 29)
+    if (this.game.gameMode === 'creative') {
+      this.showCreativeInventory();
+      return;
+    }
+
     this.hideAllMenus();
     this.updateInventory();
     this.updateHotbar();
@@ -914,6 +1033,13 @@ class UI {
       } else {
         this.flyBadgeEl.classList.add('hidden');
       }
+    }
+
+    if (this.hudDayEl && this.game.worldTime) {
+      const isDay = this.game.worldTime.isDay;
+      const icon = isDay ? '☀️' : '🌙';
+      const phase = this.game.worldTime.phaseName;
+      this.hudDayEl.textContent = `${icon} Dia ${this.game.worldTime.currentDay} (${phase})`;
     }
   }
 }

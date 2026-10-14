@@ -24,6 +24,7 @@ class Pig extends Entity {
     this.head = null;
 
     this.buildModel();
+    this.cacheOriginalColors();
   }
 
   buildModel() {

@@ -20,17 +20,17 @@ class FirstPersonArm {
     // Grupo raiz do braço fixado na câmera
     this.armRoot = new THREE.Group();
     // Posição canônica do braço direito na tela (canto inferior direito)
-    this.basePosition = new THREE.Vector3(0.32, -0.28, -0.52);
-    this.baseRotation = new THREE.Euler(-0.25, -0.35, 0.12, 'YXZ');
+    this.basePosition = new THREE.Vector3(0.32, -0.26, -0.38);
+    this.baseRotation = new THREE.Euler(-0.15, 0.35, -0.18, 'YXZ');
     this.armRoot.position.copy(this.basePosition);
     this.armRoot.rotation.copy(this.baseRotation);
 
     // Constrói o modelo voxel do braço
     this.initArmMesh();
 
-    // Contêiner para o item segurado pela mão
+    // Contêiner para o item segurado pela mão (na extremidade frontal do braço)
     this.itemContainer = new THREE.Group();
-    this.itemContainer.position.set(0, -0.15, 0.16);
+    this.itemContainer.position.set(0, 0.03, -0.20);
     this.armRoot.add(this.itemContainer);
 
     // Adiciona à câmera para que se mova 100% sincronizado com a visão
@@ -41,18 +41,18 @@ class FirstPersonArm {
     // Grupo do braço
     this.armMeshGroup = new THREE.Group();
 
-    // 1. Manga da camisa (azul-celeste / ciano clássico voxel)
-    const sleeveGeom = new THREE.BoxGeometry(0.12, 0.18, 0.12);
+    // 1. Manga da camisa (azul-celeste / ciano clássico voxel, na base/ombro perto da câmera)
+    const sleeveGeom = new THREE.BoxGeometry(0.115, 0.115, 0.16);
     const sleeveMat = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 });
     const sleeveMesh = new THREE.Mesh(sleeveGeom, sleeveMat);
-    sleeveMesh.position.set(0, 0.08, 0);
+    sleeveMesh.position.set(0, 0, 0.07);
     this.armMeshGroup.add(sleeveMesh);
 
-    // 2. Antebraço e mão (tom de pele humanoide)
-    const skinGeom = new THREE.BoxGeometry(0.108, 0.22, 0.108);
+    // 2. Antebraço e mão (tom de pele humanoide, estendendo para frente)
+    const skinGeom = new THREE.BoxGeometry(0.10, 0.10, 0.20);
     const skinMat = new THREE.MeshLambertMaterial({ color: 0xe09b67 });
     const skinMesh = new THREE.Mesh(skinGeom, skinMat);
-    skinMesh.position.set(0, -0.10, 0);
+    skinMesh.position.set(0, 0, -0.10);
     this.armMeshGroup.add(skinMesh);
 
     this.armRoot.add(this.armMeshGroup);
@@ -103,7 +103,8 @@ class FirstPersonArm {
       }
 
       const blockMesh = new THREE.Mesh(blockGeom, mat);
-      blockMesh.rotation.set(0.3, 0.6, -0.2);
+      blockMesh.position.set(0, 0.06, -0.04);
+      blockMesh.rotation.set(0.2, 0.5, -0.1);
       this.itemContainer.add(blockMesh);
     } else {
       // Se for ferramenta ou espada: cria modelo 3D correspondente
@@ -125,8 +126,8 @@ class FirstPersonArm {
     if (def.material === 'stone') headColor = 0x828588; // pedra
     else if (def.material === 'iron') headColor = 0xd9e1e8; // ferro brilhante
 
-    // 1. Cabo de madeira longo
-    const handleGeom = new THREE.BoxGeometry(0.024, 0.32, 0.024);
+    // 1. Cabo de madeira
+    const handleGeom = new THREE.BoxGeometry(0.024, 0.28, 0.024);
     const handleMat = new THREE.MeshLambertMaterial({ color: 0x6e4726 });
     const handle = new THREE.Mesh(handleGeom, handleMat);
     handle.position.set(0, 0.08, 0);
@@ -135,63 +136,73 @@ class FirstPersonArm {
     if (def.isWeapon) {
       // ESPADA
       // Guarda / Cruzeta
-      const guardGeom = new THREE.BoxGeometry(0.12, 0.028, 0.038);
+      const guardGeom = new THREE.BoxGeometry(0.11, 0.026, 0.035);
       const guardMat = new THREE.MeshLambertMaterial({ color: def.material === 'iron' ? 0x99a1a6 : headColor });
       const guard = new THREE.Mesh(guardGeom, guardMat);
       guard.position.set(0, 0.16, 0);
       group.add(guard);
 
       // Lâmina afiada longa com ponta
-      const bladeGeom = new THREE.BoxGeometry(0.052, 0.36, 0.018);
+      const bladeGeom = new THREE.BoxGeometry(0.05, 0.34, 0.018);
       const bladeMat = new THREE.MeshLambertMaterial({ color: headColor });
       const blade = new THREE.Mesh(bladeGeom, bladeMat);
-      blade.position.set(0, 0.35, 0);
+      blade.position.set(0, 0.34, 0);
       group.add(blade);
 
-      // Orientação de empunhadura da espada
-      group.rotation.set(0.6, -0.4, 0.3);
-      group.position.set(0.02, 0.02, 0.04);
+      // Orientação empunhada apontando para frente e para cima
+      group.position.set(0, 0.02, 0);
+      group.rotation.set(-0.45, 0.40, -0.30);
     } else if (def.toolType === 'pickaxe') {
       // PICARETA
-      const headGeom = new THREE.BoxGeometry(0.24, 0.042, 0.032);
+      const headGeom = new THREE.BoxGeometry(0.22, 0.042, 0.032);
       const headMat = new THREE.MeshLambertMaterial({ color: headColor });
       const head = new THREE.Mesh(headGeom, headMat);
-      head.position.set(0, 0.24, 0);
+      head.position.set(0, 0.22, 0);
       group.add(head);
 
-      group.rotation.set(0.4, -0.5, 0.2);
+      group.position.set(0, 0.02, 0);
+      group.rotation.set(-0.45, 0.40, -0.30);
     } else if (def.toolType === 'axe') {
       // MACHADO
-      const headGeom = new THREE.BoxGeometry(0.13, 0.11, 0.032);
+      const headGeom = new THREE.BoxGeometry(0.12, 0.10, 0.032);
       const headMat = new THREE.MeshLambertMaterial({ color: headColor });
       const head = new THREE.Mesh(headGeom, headMat);
-      head.position.set(0.04, 0.22, 0);
+      head.position.set(0.04, 0.20, 0);
       group.add(head);
 
-      group.rotation.set(0.4, -0.5, 0.2);
+      group.position.set(0, 0.02, 0);
+      group.rotation.set(-0.45, 0.40, -0.30);
     } else if (def.toolType === 'shovel') {
       // PÁ
-      const headGeom = new THREE.BoxGeometry(0.075, 0.12, 0.022);
+      const headGeom = new THREE.BoxGeometry(0.075, 0.11, 0.022);
       const headMat = new THREE.MeshLambertMaterial({ color: headColor });
       const head = new THREE.Mesh(headGeom, headMat);
-      head.position.set(0, 0.24, 0);
+      head.position.set(0, 0.22, 0);
       group.add(head);
 
-      group.rotation.set(0.4, -0.5, 0.2);
+      group.position.set(0, 0.02, 0);
+      group.rotation.set(-0.45, 0.40, -0.30);
     } else {
-      // Outros itens (carne, lingote, carvão): plano 2D com ícone estilizado
-      const planeGeom = new THREE.PlaneGeometry(0.22, 0.22);
-      const iconUrl = getItemOrBlockIcon(itemId);
-      const texture = new THREE.TextureLoader().load(iconUrl);
+      // Outros itens (carne crua, carne assada, lingote, carvão, graveto): plano 2D com ícone estilizado
+      const planeGeom = new THREE.PlaneGeometry(0.20, 0.20);
+      let texture;
+      if (typeof itemIcons !== 'undefined' && itemIcons[itemId]) {
+        texture = new THREE.CanvasTexture(itemIcons[itemId]);
+      } else {
+        const iconUrl = getItemOrBlockIcon(itemId);
+        texture = new THREE.TextureLoader().load(iconUrl);
+      }
       texture.magFilter = THREE.NearestFilter;
       texture.minFilter = THREE.NearestFilter;
       const planeMat = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
+        alphaTest: 0.1,
         side: THREE.DoubleSide
       });
       const plane = new THREE.Mesh(planeGeom, planeMat);
-      plane.rotation.set(0.2, 0.5, 0);
+      plane.position.set(0, 0.06, -0.02);
+      plane.rotation.set(0.1, 0.35, 0);
       group.add(plane);
     }
 
@@ -249,13 +260,13 @@ class FirstPersonArm {
         this.isSwinging = isMining; // Continua se estiver minerando
       }
 
-      // Arco suave senoidal de corte
+      // Arco suave senoidal de corte para frente e para baixo
       const sinCurve = Math.sin(this.swingProgress * Math.PI);
-      swingRotX = sinCurve * 0.95;
-      swingRotY = -sinCurve * 0.45;
-      swingRotZ = sinCurve * 0.35;
+      swingRotX = -sinCurve * 0.65;
+      swingRotY = sinCurve * 0.45;
+      swingRotZ = -sinCurve * 0.35;
       swingPosZ = -sinCurve * 0.08;
-      swingPosY = sinCurve * 0.04;
+      swingPosY = -sinCurve * 0.04;
     }
 
     // 5. Animação de Colocação (Punch)

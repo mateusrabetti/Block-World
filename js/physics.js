@@ -17,6 +17,30 @@ class Physics {
 
     this.onGround = false;
     this.inWater = false;
+    this.isSneaking = false;
+  }
+
+  /**
+   * Verifica se há chão sólido de apoio abaixo da posição (usado na proteção de borda do agachamento)
+   */
+  hasGroundBeneath(x, y, z, world) {
+    const eps = 0.001;
+    const minX = Math.floor(x - this.halfWidth + eps);
+    const maxX = Math.floor(x + this.halfWidth - eps);
+    const minZ = Math.floor(z - this.halfWidth + eps);
+    const maxZ = Math.floor(z + this.halfWidth - eps);
+    const checkY = Math.floor(y - 0.2);
+
+    if (checkY < 0) return true;
+
+    for (let bx = minX; bx <= maxX; bx++) {
+      for (let bz = minZ; bz <= maxZ; bz++) {
+        if (world.isSolid(bx, checkY, bz)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**
@@ -108,7 +132,24 @@ class Physics {
 
     // 2. Movimento e Resolução no Eixo X
     const oldX = pos.x;
-    const dx = vel.x * dt;
+    let dx = vel.x * dt;
+
+    // Proteção de borda ao agachar (Minecraft Sneak Edge Protection)
+    if (this.isSneaking && this.onGround && !isFlying && !this.inWater) {
+      if (!this.hasGroundBeneath(pos.x + dx, pos.y, pos.z, world)) {
+        let step = dx;
+        while (Math.abs(step) > 0.001 && !this.hasGroundBeneath(pos.x + step, pos.y, pos.z, world)) {
+          step *= 0.5;
+        }
+        if (this.hasGroundBeneath(pos.x + step, pos.y, pos.z, world)) {
+          dx = step;
+        } else {
+          dx = 0;
+          vel.x = 0;
+        }
+      }
+    }
+
     if (dx !== 0) {
       pos.x += dx;
       if (this.hasCollisionAt(pos, world)) {
@@ -126,7 +167,24 @@ class Physics {
 
     // 3. Movimento e Resolução no Eixo Z
     const oldZ = pos.z;
-    const dz = vel.z * dt;
+    let dz = vel.z * dt;
+
+    // Proteção de borda ao agachar (Minecraft Sneak Edge Protection)
+    if (this.isSneaking && this.onGround && !isFlying && !this.inWater) {
+      if (!this.hasGroundBeneath(pos.x, pos.y, pos.z + dz, world)) {
+        let step = dz;
+        while (Math.abs(step) > 0.001 && !this.hasGroundBeneath(pos.x, pos.y, pos.z + step, world)) {
+          step *= 0.5;
+        }
+        if (this.hasGroundBeneath(pos.x, pos.y, pos.z + step, world)) {
+          dz = step;
+        } else {
+          dz = 0;
+          vel.z = 0;
+        }
+      }
+    }
+
     if (dz !== 0) {
       pos.z += dz;
       if (this.hasCollisionAt(pos, world)) {

@@ -20,6 +20,7 @@ const ITEM_STONE_SHOVEL = 110;
 const ITEM_IRON_SHOVEL = 111;
 
 const ITEM_PORKCHOP = 112;
+const ITEM_COOKED_PORKCHOP = 116;
 
 const ITEM_WOODEN_SWORD = 113;
 const ITEM_STONE_SWORD = 114;
@@ -353,6 +354,60 @@ itemIcons[ITEM_PORKCHOP] = drawTile((ctx) => {
   });
 });
 
+// 17. Carne de Porco Assada (Cooked Porkchop) - Bife grelhado dourado com marcas de brasa
+itemIcons[ITEM_COOKED_PORKCHOP] = drawTile((ctx) => {
+  const meatPixels = [
+    [5, 4], [6, 4], [7, 4], [8, 4],
+    [4, 5], [5, 5], [6, 5], [7, 5], [8, 5], [9, 5],
+    [3, 6], [4, 6], [5, 6], [6, 6], [7, 6], [8, 6], [9, 6], [10, 6],
+    [3, 7], [4, 7], [5, 7], [6, 7], [7, 7], [8, 7], [9, 7], [10, 7],
+    [4, 8], [5, 8], [6, 8], [7, 8], [8, 8], [9, 8], [10, 8], [11, 8],
+    [4, 9], [5, 9], [6, 9], [7, 9], [8, 9], [9, 9], [10, 9],
+    [5, 10], [6, 10], [7, 10], [8, 10], [9, 10],
+    [6, 11], [7, 11], [8, 11]
+  ];
+
+  // Tom castanho caramelizado de carne assada
+  meatPixels.forEach(([x, y]) => {
+    ctx.fillStyle = '#9b4e23';
+    ctx.fillRect(x, y, 1, 1);
+  });
+
+  // Marcas de grelhado dourado e crosta suculenta
+  const crustPixels = [
+    [5, 4], [6, 4], [4, 5], [3, 6], [3, 7], [4, 8],
+    [7, 6], [8, 6], [6, 8], [7, 8]
+  ];
+  crustPixels.forEach(([x, y]) => {
+    ctx.fillStyle = '#d28042';
+    ctx.fillRect(x, y, 1, 1);
+  });
+
+  // Marcas de brasa escura tostada
+  const searMarks = [
+    [5, 6], [6, 6], [7, 7], [8, 7], [5, 8], [6, 8], [7, 9], [8, 9]
+  ];
+  searMarks.forEach(([x, y]) => {
+    ctx.fillStyle = '#5c250e';
+    ctx.fillRect(x, y, 1, 1);
+  });
+
+  // Osso cozido
+  ctx.fillStyle = '#f3f4f6';
+  ctx.fillRect(10, 7, 2, 2);
+  ctx.fillStyle = '#d1d5db';
+  ctx.fillRect(11, 8, 1, 1);
+
+  // Sombra profunda tostada
+  const darkMeat = [
+    [5, 9], [6, 10], [7, 10], [8, 10], [9, 10], [6, 11], [7, 11], [8, 11]
+  ];
+  darkMeat.forEach(([x, y]) => {
+    ctx.fillStyle = '#451a08';
+    ctx.fillRect(x, y, 1, 1);
+  });
+});
+
 // =============================================================================
 // Registro Central de Itens, Ferramentas, Espadas e Alimentos
 // =============================================================================
@@ -386,7 +441,16 @@ const ITEM_TYPES = {
     isBlock: false,
     isTool: false,
     isFood: true,
-    healAmount: 4,
+    healAmount: 3, // 1.5 coração = 3 pontos de vida (Requisito 4)
+    maxStack: 64
+  },
+  [ITEM_COOKED_PORKCHOP]: {
+    id: ITEM_COOKED_PORKCHOP,
+    name: 'Carne Assada',
+    isBlock: false,
+    isTool: false,
+    isFood: true,
+    healAmount: 8, // 4 corações = 8 pontos de vida (Requisito 4)
     maxStack: 64
   },
 
@@ -607,10 +671,13 @@ window.ITEM_WOODEN_SHOVEL = ITEM_WOODEN_SHOVEL;
 window.ITEM_STONE_SHOVEL = ITEM_STONE_SHOVEL;
 window.ITEM_IRON_SHOVEL = ITEM_IRON_SHOVEL;
 window.ITEM_PORKCHOP = ITEM_PORKCHOP;
+window.ITEM_COOKED_PORKCHOP = ITEM_COOKED_PORKCHOP;
 window.ITEM_WOODEN_SWORD = ITEM_WOODEN_SWORD;
 window.ITEM_STONE_SWORD = ITEM_STONE_SWORD;
 window.ITEM_IRON_SWORD = ITEM_IRON_SWORD;
 window.ITEM_TYPES = ITEM_TYPES;
+const ITEM_DEFINITIONS = ITEM_TYPES;
+window.ITEM_DEFINITIONS = ITEM_DEFINITIONS;
 window.getItemIconDataUrl = getItemIconDataUrl;
 window.isItem = isItem;
 window.getItemOrBlockDef = getItemOrBlockDef;

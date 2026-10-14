@@ -3,11 +3,12 @@
 // =============================================================================
 
 class ItemDrop {
-  constructor(x, y, z, itemId, count = 1, durability = undefined, manager) {
+  constructor(x, y, z, itemId, count = 1, durability = undefined, manager, pickupDelay = 0.0) {
     this.manager = manager;
     this.itemId = itemId;
     this.count = count;
     this.durability = durability;
+    this.pickupDelay = pickupDelay;
 
     this.position = new THREE.Vector3(x, y, z);
     this.velocity = new THREE.Vector3(
@@ -85,8 +86,10 @@ class ItemDrop {
     const dz = playerPos.z - this.position.z;
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-    // 1. Atração magnética quando o jogador se aproxima (< 2.8m)
-    if (dist < 2.8) {
+    const canPickup = this.age >= this.pickupDelay;
+
+    // 1. Atração magnética quando o jogador se aproxima (< 2.8m) e o cooldown de coleta terminou
+    if (canPickup && dist < 2.8) {
       this.isAttracting = true;
       const speed = Math.max(5.5, 12.0 - dist * 2.2);
       this.position.x += (dx / dist) * speed * dt;
@@ -205,9 +208,9 @@ class DropManager {
     this.drops = [];
   }
 
-  spawnDrop(x, y, z, itemId, count = 1, durability = undefined) {
+  spawnDrop(x, y, z, itemId, count = 1, durability = undefined, pickupDelay = 0.0) {
     if (!itemId || count <= 0) return;
-    const drop = new ItemDrop(x, y, z, itemId, count, durability, this);
+    const drop = new ItemDrop(x, y, z, itemId, count, durability, this, pickupDelay);
     this.drops.push(drop);
     return drop;
   }

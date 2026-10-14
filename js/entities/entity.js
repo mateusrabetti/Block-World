@@ -22,6 +22,7 @@ class Entity {
 
     this.onGround = false;
     this.hurtTimer = 0; // Timer para efeito visual de piscar em vermelho ao receber dano
+    this.isFlashingRed = false;
 
     // Grupo Three.js da entidade
     this.mesh = new THREE.Group();
@@ -29,12 +30,29 @@ class Entity {
     this.scene.add(this.mesh);
   }
 
+  // Memoriza cores originais de cada material de forma independente
+  cacheOriginalColors() {
+    if (!this.mesh) return;
+    this.mesh.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        for (const mat of mats) {
+          if (!mat || !mat.color) continue;
+          if (mat._originalColor === undefined) {
+            mat._originalColor = mat.color.getHex();
+          }
+        }
+      }
+    });
+  }
+
   // Recebe dano de qualquer fonte
   takeDamage(amount, source = 'generic') {
     if (this.isDead || amount <= 0) return;
 
     this.health = Math.max(0, this.health - amount);
-    this.hurtTimer = 0.18; // Pisca vermelho por 180ms
+    this.hurtTimer = 0.22; // Pisca vermelho por 220ms (entre 150ms e 300ms)
+    this.setFlashRed(true);
 
     // Feedback sonoro de acerto
     this.playHitSound();
@@ -54,23 +72,35 @@ class Entity {
     }
   }
 
-  // Pisca em vermelho ao sofrer dano
+  // Pisca em vermelho ao sofrer dano e restaura cor original pontualmente
   updateHurtEffect(dt) {
     if (this.hurtTimer > 0) {
       this.hurtTimer -= dt;
-      const isRed = this.hurtTimer > 0;
-      this.setFlashRed(isRed);
+      if (this.hurtTimer <= 0) {
+        this.hurtTimer = 0;
+        this.setFlashRed(false);
+      }
     }
   }
 
   setFlashRed(isRed) {
+    if (this.isFlashingRed === isRed) return;
+    this.isFlashingRed = isRed;
+
+    if (!this.mesh) return;
     this.mesh.traverse((child) => {
       if (child.isMesh && child.material) {
-        if (isRed) {
-          if (!child._origColor) child._origColor = child.material.color.getHex();
-          child.material.color.setHex(0xff3333);
-        } else if (child._origColor !== undefined) {
-          child.material.color.setHex(child._origColor);
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        for (const mat of mats) {
+          if (!mat || !mat.color) continue;
+          if (isRed) {
+            if (mat._originalColor === undefined) {
+              mat._originalColor = mat.color.getHex();
+            }
+            mat.color.setHex(0xff3333);
+          } else if (mat._originalColor !== undefined) {
+            mat.color.setHex(mat._originalColor);
+          }
         }
       }
     });

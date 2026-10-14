@@ -22,6 +22,7 @@ class Player {
     // Configurações de velocidade
     this.walkSpeed = 4.8;
     this.sprintSpeed = 7.2;
+    this.sneakSpeed = 2.4;
     this.flySpeed = 10.5;
     this.flyVerticalSpeed = 7.5;
     this.accelGround = 18.0;
@@ -226,6 +227,15 @@ class Player {
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
       osc.start(now);
       osc.stop(now + 0.07);
+    } else if (type === 'eat') {
+      // Mastigação crocante de alimento
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(170, now + 0.12);
+      gain.gain.setValueAtTime(0.24, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+      osc.start(now);
+      osc.stop(now + 0.12);
     } else if (type === 'jump') {
       // Pulo suave
       osc.type = 'sine';
@@ -307,8 +317,19 @@ class Player {
       // ==========================================
       // MOVIMENTO TERRESTRE NORMAL
       // ==========================================
-      const isSprinting = inputKeys.shift && !this.physics.inWater;
-      const speed = isSprinting ? this.sprintSpeed : this.walkSpeed;
+      const isSneaking = !!inputKeys.shift && !this.isFlying;
+      this.physics.isSneaking = isSneaking;
+      this.physics.eyeHeight = isSneaking ? 1.42 : 1.62;
+      this.physics.height = isSneaking ? 1.5 : 1.8;
+
+      const isSprinting = !!inputKeys.sprint && inputKeys.forward && !isSneaking && !this.physics.inWater;
+      let speed = this.walkSpeed;
+      if (isSneaking) {
+        speed = this.sneakSpeed;
+      } else if (isSprinting) {
+        speed = this.sprintSpeed;
+      }
+
       const targetVelX = moveX * speed;
       const targetVelZ = moveZ * speed;
 
@@ -503,6 +524,110 @@ class Player {
         this.inventory.consumeSelectedItem();
       }
       this.updateTargetBlock();
+    }
+  }
+
+  // Ação de Comer Alimento (Clique Direito com Carne Crua / Assada)
+  eatFood() {
+    // Se estiver interagindo com Fornalha ou Bancada de Trabalho, prioriza abrir a interface
+    if (this.targetBlock && (this.targetBlock.type === BLOCK_FURNACE || this.targetBlock.type === BLOCK_CRAFTING_TABLE)) {
+      return false;
+    }
+
+    const hotbarItem = this.inventory ? this.inventory.getSelectedHotbarItem() : null;
+    if (!hotbarItem || hotbarItem.count <= 0) return false;
+
+    const def = getItemOrBlockDef(hotbarItem.id);
+    if (!def || !def.isFood) return false;
+
+    const game = (typeof window !== 'undefined' && window.game) ? window.game : (typeof global !== 'undefined' ? global.game : null);
+    const healthSys = game?.health;
+    const isSurvival = (game?.gameMode || 'survival') !== 'creative';
+
+    if (isSurvival && healthSys) {
+      // Se a vida já estiver cheia (20 HP), não desperdiça o alimento
+      if (healthSys.health >= healthSys.maxHealth) {
+        if (game?.ui) {
+          game.ui.showToast('Sua vida já está cheia!');
+        }
+        return true;
+      }
+
+      // Recupera a vida correspondente (3 HP carne crua, 8 HP carne assada)
+      const healAmount = def.healAmount || 3;
+      healthSys.heal(healAmount);
+
+      // Consome 1 unidade do alimento da hotbar
+      this.inventory.consumeSelectedItem();
+
+      // Som e animação
+      this.playSound('eat');
+      if (this.arm) {
+        this.arm.triggerPunch();
+      }
+
+      if (window.game?.ui) {
+        window.game.ui.updateHotbar();
+        window.game.ui.showToast(`Comeu ${def.name}! +${healAmount} de vida.`);
+      }
+
+      return true;
+    } else if (!isSurvival) {
+      // Modo criativo
+      this.playSound('eat');
+      if (this.arm) {
+        this.arm.triggerPunch();
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  // Ação de Largar Item Selecionado na Mão (Tecla Q)
+  dropSelectedItem() {
+    if (!this.inventory) return;
+    const item = this.inventory.getSelectedHotbarItem();
+    if (!item || item.count <= 0) return;
+
+    const dropId = item.id;
+    const dropDurability = item.durability;
+
+    // Remove 1 unidade do inventário
+    item.count -= 1;
+    if (item.count <= 0) {
+      this.inventory.slots[this.inventory.selectedHotbarIndex] = null;
+    }
+
+    // Calcula posição e direção de lançamento à frente
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+
+    const dropX = this.position.x + dir.x * 0.45;
+    const dropY = this.position.y + this.physics.eyeHeight - 0.2;
+    const dropZ = this.position.z + dir.z * 0.45;
+
+    const game = (typeof window !== 'undefined' && window.game) ? window.game : (typeof global !== 'undefined' ? global.game : null);
+    if (game && game.drops) {
+      // Cria o item dropado com delay de 1.2s para evitar auto-coleta imediata
+      const drop = game.drops.spawnDrop(dropX, dropY, dropZ, dropId, 1, dropDurability, 1.2);
+      if (drop) {
+        drop.velocity.set(
+          dir.x * 4.2 + (Math.random() - 0.5) * 0.3,
+          dir.y * 2.2 + 2.0,
+          dir.z * 4.2 + (Math.random() - 0.5) * 0.3
+        );
+      }
+    }
+
+    if (this.arm) {
+      this.arm.triggerSwing();
+    }
+    this.playSound('place');
+
+    if (game?.ui) {
+      game.ui.updateHotbar();
+      game.ui.updateInventory();
     }
   }
 }

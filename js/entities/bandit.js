@@ -28,6 +28,7 @@ class Bandit extends Entity {
     this.rightLeg = null;
 
     this.buildModel();
+    this.cacheOriginalColors();
   }
 
   buildModel() {

@@ -58,6 +58,7 @@ class Game {
     // 2. Câmera (alcance estendido para renderização de chunks maiores)
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 220);
+    this.scene.add(this.camera);
 
     // 3. Renderizador WebGL
     this.renderer = new THREE.WebGLRenderer({
@@ -181,6 +182,11 @@ class Game {
 
         // Atualiza jogador e física
         this.player.update(dt, this.input.keys);
+
+        // Atualiza ações contínuas de input (segurar botões)
+        if (this.input) {
+          this.input.update(dt);
+        }
 
         // Atualiza mineração progressiva
         if (this.mining) {

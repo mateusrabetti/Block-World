@@ -13,7 +13,8 @@ class Input {
       left: false,
       right: false,
       jump: false,
-      shift: false
+      shift: false,
+      sprint: false
     };
 
     this.isPointerLocked = false;
@@ -21,6 +22,17 @@ class Input {
     // Detecção de duplo pulo para voo
     this.lastSpacePress = 0;
     this.doubleTapThreshold = 320; // 320ms entre toques
+
+    // Detecção de duplo toque no W para corrida (Sprint)
+    this.lastForwardPress = 0;
+    this.sprintDoubleTapThreshold = 280; // 280ms entre toques
+
+    // Controle de segurar botões do mouse (Mineração e Colocação contínuas)
+    this.isMiningMouseDown = false;
+    this.isPlacingMouseDown = false;
+    this.lastPlaceTime = 0;
+    this.placeInterval = 220; // ms de intervalo entre colocações sucessivas
+    this.lastCreativeBreakTime = 0;
 
     this.initKeyboard();
     this.initMouse();
@@ -73,12 +85,28 @@ class Input {
         }
       }
 
+      // Tecla 'Q': Largar item selecionado na mão (Requisito 3)
+      if (e.code === 'KeyQ') {
+        if (this.game.state === 'PLAYING') {
+          e.preventDefault();
+          this.game.player.dropSelectedItem();
+        }
+        return;
+      }
+
       // Se não estiver jogando, ignora teclas de movimentação
       if (this.game.state !== 'PLAYING') return;
 
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':
+          if (!e.repeat) {
+            const now = performance.now();
+            if (now - this.lastForwardPress < this.sprintDoubleTapThreshold && now - this.lastForwardPress > 40) {
+              this.keys.sprint = true;
+            }
+            this.lastForwardPress = now;
+          }
           this.keys.forward = true;
           break;
         case 'KeyS':
@@ -134,6 +162,7 @@ class Input {
         case 'KeyW':
         case 'ArrowUp':
           this.keys.forward = false;
+          this.keys.sprint = false;
           break;
         case 'KeyS':
         case 'ArrowDown':
@@ -170,6 +199,13 @@ class Input {
       if (!this.isPointerLocked || this.game.state !== 'PLAYING') return;
 
       if (e.button === 0) {
+        this.isMiningMouseDown = true;
+
+        // Balanço do braço sempre ao clicar botão esquerdo
+        if (this.game.player && this.game.player.arm) {
+          this.game.player.arm.triggerSwing();
+        }
+
         // 1. Tenta atacar entidade em foco primeiro (Requisitos 38 e 39)
         const hitEntity = this.game.player.attackTargetOrEntity();
         if (hitEntity) {
@@ -179,6 +215,7 @@ class Input {
         // 2. Se não acertou entidade: Quebra Bloco (Instantâneo no Criativo, Mineração progressiva no Sobrevivência)
         if (this.game.gameMode === 'creative') {
           this.game.player.breakBlock();
+          this.lastCreativeBreakTime = performance.now();
           this.game.ui.updateHotbar();
         } else {
           if (this.game.mining) {
@@ -186,18 +223,28 @@ class Input {
           }
         }
       } else if (e.button === 2) {
-        // Botão Direito: Coloca Bloco ou Interage (ex: Bancada)
-        this.game.player.placeBlock();
+        this.isPlacingMouseDown = true;
+        this.lastPlaceTime = performance.now();
+
+        // Botão Direito: Primeiro tenta comer alimento se estiver segurando comida
+        const ate = this.game.player.eatFood();
+        if (!ate) {
+          // Se não comeu, posiciona bloco ou interage (ex: Bancada ou Fornalha)
+          this.game.player.placeBlock();
+        }
         this.game.ui.updateHotbar();
       }
     });
 
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) {
+        this.isMiningMouseDown = false;
         // Soltou botão de quebra: encerra mineração
         if (this.game.mining) {
           this.game.mining.stopMining();
         }
+      } else if (e.button === 2) {
+        this.isPlacingMouseDown = false;
       }
     });
 
@@ -302,5 +349,45 @@ class Input {
     this.keys.right = false;
     this.keys.jump = false;
     this.keys.shift = false;
+    this.keys.sprint = false;
+    this.isMiningMouseDown = false;
+    this.isPlacingMouseDown = false;
+  }
+
+  // Atualização contínua de ações do mouse enquanto botões são mantidos pressionados
+  update(dt) {
+    if (!this.isPointerLocked || this.game.state !== 'PLAYING') return;
+
+    const now = performance.now();
+
+    // 1. Colocação contínua de blocos segurando o botão direito (Requisito 5)
+    if (this.isPlacingMouseDown) {
+      if (now - this.lastPlaceTime >= this.placeInterval) {
+        this.lastPlaceTime = now;
+        const ate = this.game.player.eatFood();
+        if (!ate) {
+          this.game.player.placeBlock();
+        }
+        if (this.game.ui) {
+          this.game.ui.updateHotbar();
+        }
+      }
+    }
+
+    // 2. Quebra contínua no Modo Criativo segurando o botão esquerdo (Requisito 4)
+    if (this.isMiningMouseDown && this.game.gameMode === 'creative') {
+      if (now - this.lastCreativeBreakTime >= 200) {
+        this.lastCreativeBreakTime = now;
+        if (this.game.player.targetBlock) {
+          this.game.player.breakBlock();
+          if (this.game.player.arm) {
+            this.game.player.arm.triggerSwing();
+          }
+          if (this.game.ui) {
+            this.game.ui.updateHotbar();
+          }
+        }
+      }
+    }
   }
 }

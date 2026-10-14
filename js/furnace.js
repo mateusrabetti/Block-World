@@ -12,16 +12,23 @@ class FurnaceManager {
     // Posição da fornalha atualmente aberta na UI ({ x, y, z } ou null)
     this.currentFurnacePos = null;
 
-    // Receitas de fundição: Entrada -> Saída
+    // Receitas de fundição: Entrada -> Saída (Ferro, Areia e Carne)
     this.smeltRecipes = {
       [BLOCK_IRON_ORE]: { outputId: ITEM_IRON_INGOT, name: 'Barra de Ferro' },
-      [BLOCK_SAND]: { outputId: BLOCK_GLASS, name: 'Vidro' }
+      [BLOCK_SAND]: { outputId: BLOCK_GLASS, name: 'Vidro' },
+      [ITEM_PORKCHOP]: { outputId: ITEM_COOKED_PORKCHOP, name: 'Carne Assada' }
     };
 
     // Duração de fundição por item (em segundos)
     this.smeltDuration = 6.0;
 
-    // Tempo de queima por unidade de Carvão (48 segundos = funde até 8 itens)
+    // Tempo de queima por tipo de combustível (segundos)
+    this.fuelBurnTimes = {
+      [ITEM_COAL]: 48.0,
+      [BLOCK_WOOD]: 15.0,
+      [BLOCK_PLANKS]: 15.0,
+      [ITEM_STICK]: 5.0
+    };
     this.coalBurnDuration = 48.0;
 
     this.initDOM();
@@ -132,13 +139,14 @@ class FurnaceManager {
         if (f.fuelTimeLeft < 0) f.fuelTimeLeft = 0;
       }
 
-      // Se precisa acender novo carvão e há item pronto para fundir
+      // Se precisa acender novo combustível e há item pronto para fundir
       if (f.fuelTimeLeft <= 0 && canSmeltItem) {
-        if (f.fuel && f.fuel.id === ITEM_COAL && f.fuel.count > 0) {
+        if (f.fuel && this.fuelBurnTimes[f.fuel.id] !== undefined && f.fuel.count > 0) {
+          const burnDuration = this.fuelBurnTimes[f.fuel.id];
           f.fuel.count -= 1;
           if (f.fuel.count <= 0) f.fuel = null;
-          f.fuelTimeLeft = this.coalBurnDuration;
-          f.maxFuelTime = this.coalBurnDuration;
+          f.fuelTimeLeft = burnDuration;
+          f.maxFuelTime = burnDuration;
         }
       }
 
@@ -220,25 +228,47 @@ class FurnaceManager {
   }
 
   initSlotEvents() {
+    const updateCursorPos = (e) => {
+      if (this.game.ui && this.game.ui.cursorItemEl) {
+        this.game.ui.cursorItemEl.style.left = `${e.clientX}px`;
+        this.game.ui.cursorItemEl.style.top = `${e.clientY}px`;
+      }
+    };
+
     // Clique na Entrada
     this.inputSlotEl?.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleSlotInteraction('input', e.button === 2);
+      updateCursorPos(e);
+      if (e.shiftKey && e.button === 0) {
+        this.handleSlotShiftClick('input');
+      } else {
+        this.handleSlotInteraction('input', e.button === 2);
+      }
     });
 
     // Clique no Combustível
     this.fuelSlotEl?.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleSlotInteraction('fuel', e.button === 2);
+      updateCursorPos(e);
+      if (e.shiftKey && e.button === 0) {
+        this.handleSlotShiftClick('fuel');
+      } else {
+        this.handleSlotInteraction('fuel', e.button === 2);
+      }
     });
 
-    // Clique na Saída (Apenas retirada)
+    // Clique na Saída (Apenas retirada ou Shift+Clique para transferência rápida)
     this.outputSlotEl?.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleOutputInteraction();
+      updateCursorPos(e);
+      if (e.shiftKey && e.button === 0) {
+        this.handleOutputShiftClick();
+      } else {
+        this.handleOutputInteraction();
+      }
     });
   }
 
@@ -268,15 +298,15 @@ class FurnaceManager {
       }
     } else {
       // Deposita do cursor no slot
-      // Se for slot de combustível, apenas aceita CARVÃO
-      if (slotType === 'fuel' && cursor.id !== ITEM_COAL) {
-        if (this.game.ui) this.game.ui.showToast('Apenas Carvão pode ser usado como combustível!');
+      // Se for slot de combustível, verifica combustíveis aceitos
+      if (slotType === 'fuel' && this.fuelBurnTimes[cursor.id] === undefined) {
+        if (this.game.ui) this.game.ui.showToast('Combustível inválido! Use Carvão, Madeira ou Gravetos.');
         return;
       }
 
-      // Se for slot de entrada, apenas aceita itens fundíveis (ferro ou areia)
+      // Se for slot de entrada, apenas aceita itens com receita registrada
       if (slotType === 'input' && !this.smeltRecipes[cursor.id]) {
-        if (this.game.ui) this.game.ui.showToast('Apenas Minério de Ferro e Areia podem ser fundidos!');
+        if (this.game.ui) this.game.ui.showToast('Este item não pode ser fundido na fornalha!');
         return;
       }
 
@@ -304,7 +334,9 @@ class FurnaceManager {
           if (cursor.count <= 0) this.game.inventory.cursorItem = null;
         }
       } else {
-        // Troca de itens
+        // Troca de itens - valida antes
+        if (slotType === 'fuel' && this.fuelBurnTimes[cursor.id] === undefined) return;
+        if (slotType === 'input' && !this.smeltRecipes[cursor.id]) return;
         const temp = { ...currentSlot };
         f[slotType] = { ...cursor };
         this.game.inventory.cursorItem = temp;
@@ -327,15 +359,125 @@ class FurnaceManager {
     if (!cursor) {
       this.game.inventory.cursorItem = { ...f.output };
       f.output = null;
-    } else if (cursor.id === f.output.id && cursor.count + f.output.count <= 64) {
-      cursor.count += f.output.count;
-      f.output = null;
+    } else if (cursor.id === f.output.id && cursor.count < 64) {
+      const space = 64 - cursor.count;
+      const toMove = Math.min(space, f.output.count);
+      cursor.count += toMove;
+      f.output.count -= toMove;
+      if (f.output.count <= 0) f.output = null;
     }
 
     this.updateUI();
     this.game.ui.updateCursorItem();
     this.game.ui.updateInventory();
     this.game.ui.updateHotbar();
+  }
+
+  // Transferência rápida (Shift + Clique) da saída da Fornalha para Hotbar / Inventário (Requisito 6B)
+  handleOutputShiftClick() {
+    if (!this.currentFurnacePos) return;
+    const f = this.getFurnaceAt(this.currentFurnacePos.x, this.currentFurnacePos.y, this.currentFurnacePos.z);
+    if (!f || !f.output || f.output.count <= 0) return;
+
+    const unplaced = this.game.inventory.addItemToHotbarFirst(
+      f.output.id,
+      f.output.count,
+      f.output.durability,
+      f.output.maxDurability
+    );
+
+    const moved = f.output.count - unplaced;
+    if (moved > 0) {
+      f.output.count = unplaced;
+      if (f.output.count <= 0) f.output = null;
+
+      if (this.game.player) this.game.player.playSound('place');
+      this.updateUI();
+      if (this.game.ui) {
+        this.game.ui.updateInventory();
+        this.game.ui.updateHotbar();
+      }
+    }
+  }
+
+  // Transferência rápida (Shift + Clique) dos slots internos (Entrada / Combustível) de volta ao inventário (Requisito 6B)
+  handleSlotShiftClick(slotType) {
+    if (!this.currentFurnacePos) return;
+    const f = this.getFurnaceAt(this.currentFurnacePos.x, this.currentFurnacePos.y, this.currentFurnacePos.z);
+    if (!f || !f[slotType] || f[slotType].count <= 0) return;
+
+    const item = f[slotType];
+    const unplaced = this.game.inventory.addItemToHotbarFirst(
+      item.id,
+      item.count,
+      item.durability,
+      item.maxDurability
+    );
+
+    const moved = item.count - unplaced;
+    if (moved > 0) {
+      item.count = unplaced;
+      if (item.count <= 0) f[slotType] = null;
+
+      if (this.game.player) this.game.player.playSound('place');
+      this.updateUI();
+      if (this.game.ui) {
+        this.game.ui.updateInventory();
+        this.game.ui.updateHotbar();
+      }
+    }
+  }
+
+  // Transferência rápida do inventário do jogador para a Fornalha ao Shift-clicar um item (Requisito 6B)
+  transferFromInventorySlot(slotIndex) {
+    if (!this.currentFurnacePos || !this.game.inventory) return false;
+    const f = this.getFurnaceAt(this.currentFurnacePos.x, this.currentFurnacePos.y, this.currentFurnacePos.z);
+    if (!f) return false;
+
+    const item = this.game.inventory.slots[slotIndex];
+    if (!item || item.count <= 0) return false;
+
+    // 1. Se for minério / item fundível, prioriza slot de Entrada
+    if (this.smeltRecipes[item.id]) {
+      if (!f.input) {
+        f.input = { id: item.id, count: item.count };
+        this.game.inventory.slots[slotIndex] = null;
+        if (this.game.player) this.game.player.playSound('place');
+        this.updateUI();
+        return true;
+      } else if (f.input.id === item.id && f.input.count < 64) {
+        const space = 64 - f.input.count;
+        const toMove = Math.min(space, item.count);
+        f.input.count += toMove;
+        item.count -= toMove;
+        if (item.count <= 0) this.game.inventory.slots[slotIndex] = null;
+        if (this.game.player) this.game.player.playSound('place');
+        this.updateUI();
+        return true;
+      }
+    }
+
+    // 2. Se for combustível válido, prioriza slot de Combustível
+    if (this.fuelBurnTimes[item.id] !== undefined) {
+      if (!f.fuel) {
+        f.fuel = { id: item.id, count: item.count };
+        this.game.inventory.slots[slotIndex] = null;
+        if (this.game.player) this.game.player.playSound('place');
+        this.updateUI();
+        return true;
+      } else if (f.fuel.id === item.id && f.fuel.count < 64) {
+        const space = 64 - f.fuel.count;
+        const toMove = Math.min(space, item.count);
+        f.fuel.count += toMove;
+        item.count -= toMove;
+        if (item.count <= 0) this.game.inventory.slots[slotIndex] = null;
+        if (this.game.player) this.game.player.playSound('place');
+        this.updateUI();
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // Serialização para persistência

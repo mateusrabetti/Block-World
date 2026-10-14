@@ -85,7 +85,18 @@ class MiningSystem {
 
   // Atualização a cada quadro (chamada quando o botão esquerdo está pressionado)
   update(dt) {
-    if (!this.isMining || !this.targetPos) return;
+    // Se o jogador está segurando o botão esquerdo mas a mineração não está ativa (ex: acabou de quebrar ou mirou no bloco segurando)
+    if (!this.isMining) {
+      if (this.game.input && this.game.input.isMiningMouseDown && this.game.state === 'PLAYING' && this.game.gameMode !== 'creative') {
+        const currentTarget = this.game.player ? this.game.player.targetBlock : null;
+        if (currentTarget && currentTarget.block) {
+          this.startMining(currentTarget);
+        }
+      }
+      return;
+    }
+
+    if (!this.targetPos) return;
 
     // Verifica se o jogador ainda está mirando no mesmo bloco
     const currentTarget = this.game.player.targetBlock;
@@ -154,6 +165,13 @@ class MiningSystem {
     }
     if (this.game.ui) {
       this.game.ui.updateHotbar();
+    }
+
+    // Mineração contínua: se o botão continuar pressionado, inicia no próximo bloco mirado imediatamente
+    if (this.game.input && this.game.input.isMiningMouseDown && this.game.state === 'PLAYING' && this.game.gameMode !== 'creative') {
+      if (this.game.player && this.game.player.targetBlock) {
+        this.startMining(this.game.player.targetBlock);
+      }
     }
   }
 

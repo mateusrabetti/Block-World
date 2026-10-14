@@ -318,3 +318,5 @@ class RecipeManager {
 
 // Instância global de receitas
 window.recipeManager = new RecipeManager();
+const CRAFTING_RECIPES = window.recipeManager.recipes;
+window.CRAFTING_RECIPES = CRAFTING_RECIPES;

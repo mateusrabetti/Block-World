@@ -122,6 +122,203 @@ class Inventory {
   }
 
   /**
+   * Adiciona itens priorizando a mão e a hotbar primeiro, depois a mochila.
+   * Usado na transferência rápida (Shift + Clique) da saída de crafting e da fornalha.
+   */
+  addItemToHotbarFirst(itemId, count = 1, durability = undefined, maxDurability = undefined) {
+    if (!itemId || count <= 0) return 0;
+    let remaining = count;
+
+    const itemDef = getItemOrBlockDef(itemId);
+    const maxStack = itemDef?.maxStack || 64;
+
+    // Se o item não é empilhável (ex: ferramentas)
+    if (maxStack === 1) {
+      const dur = durability !== undefined ? durability : (itemDef?.maxDurability || 60);
+      const maxDur = maxDurability !== undefined ? maxDurability : (itemDef?.maxDurability || 60);
+
+      const order = [this.selectedHotbarIndex];
+      for (let i = 0; i < 9; i++) if (i !== this.selectedHotbarIndex) order.push(i);
+      for (let i = 9; i < this.totalSlots; i++) order.push(i);
+
+      while (remaining > 0) {
+        let placed = false;
+        for (const i of order) {
+          if (!this.slots[i]) {
+            this.slots[i] = { id: itemId, count: 1, durability: dur, maxDurability: maxDur };
+            remaining -= 1;
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) return remaining;
+      }
+      return 0;
+    }
+
+    const selIdx = this.selectedHotbarIndex;
+
+    // 1. Tenta empilhar na mão selecionada
+    if (this.slots[selIdx] && this.slots[selIdx].id === itemId && this.slots[selIdx].count < maxStack) {
+      const space = maxStack - this.slots[selIdx].count;
+      const toAdd = Math.min(space, remaining);
+      this.slots[selIdx].count += toAdd;
+      remaining -= toAdd;
+      if (remaining <= 0) return 0;
+    }
+
+    // 2. Tenta empilhar no restante da hotbar (0 a 8)
+    for (let i = 0; i < 9; i++) {
+      if (i === selIdx) continue;
+      const slot = this.slots[i];
+      if (slot && slot.id === itemId && slot.count < maxStack) {
+        const space = maxStack - slot.count;
+        const toAdd = Math.min(space, remaining);
+        slot.count += toAdd;
+        remaining -= toAdd;
+        if (remaining <= 0) return 0;
+      }
+    }
+
+    // 3. Coloca em slot vazio da hotbar (mão primeiro)
+    if (!this.slots[selIdx]) {
+      const toAdd = Math.min(maxStack, remaining);
+      this.slots[selIdx] = { id: itemId, count: toAdd };
+      remaining -= toAdd;
+      if (remaining <= 0) return 0;
+    }
+
+    for (let i = 0; i < 9; i++) {
+      if (i === selIdx) continue;
+      if (!this.slots[i]) {
+        const toAdd = Math.min(maxStack, remaining);
+        this.slots[i] = { id: itemId, count: toAdd };
+        remaining -= toAdd;
+        if (remaining <= 0) return 0;
+      }
+    }
+
+    // 4. Tenta empilhar na mochila (9 a 35)
+    for (let i = 9; i < this.totalSlots; i++) {
+      const slot = this.slots[i];
+      if (slot && slot.id === itemId && slot.count < maxStack) {
+        const space = maxStack - slot.count;
+        const toAdd = Math.min(space, remaining);
+        slot.count += toAdd;
+        remaining -= toAdd;
+        if (remaining <= 0) return 0;
+      }
+    }
+
+    // 5. Coloca em slots vazios da mochila (9 a 35)
+    for (let i = 9; i < this.totalSlots; i++) {
+      if (!this.slots[i]) {
+        const toAdd = Math.min(maxStack, remaining);
+        this.slots[i] = { id: itemId, count: toAdd };
+        remaining -= toAdd;
+        if (remaining <= 0) return 0;
+      }
+    }
+
+    return remaining;
+  }
+
+  /**
+   * Transferência rápida (Shift + Clique) entre Mochila e Barra de Acesso Rápido / Mão (Requisito 6A)
+   */
+  quickMoveSlot(slotIndex) {
+    if (slotIndex < 0 || slotIndex >= this.totalSlots) return false;
+    const source = this.slots[slotIndex];
+    if (!source || source.count <= 0) return false;
+
+    const itemDef = getItemOrBlockDef(source.id);
+    const maxStack = itemDef?.maxStack || 64;
+
+    if (slotIndex < 9) {
+      // De Hotbar (0..8) para Mochila (9..35)
+      // 1. Empilhar em slots iguais na mochila
+      if (maxStack > 1) {
+        for (let i = 9; i < this.totalSlots; i++) {
+          const target = this.slots[i];
+          if (target && target.id === source.id && target.count < maxStack) {
+            const space = maxStack - target.count;
+            const toMove = Math.min(space, source.count);
+            target.count += toMove;
+            source.count -= toMove;
+            if (source.count <= 0) {
+              this.slots[slotIndex] = null;
+              return true;
+            }
+          }
+        }
+      }
+
+      // 2. Colocar em slot vazio da mochila
+      for (let i = 9; i < this.totalSlots; i++) {
+        if (!this.slots[i]) {
+          const toMove = Math.min(maxStack, source.count);
+          this.slots[i] = {
+            id: source.id,
+            count: toMove,
+            durability: source.durability,
+            maxDurability: source.maxDurability
+          };
+          source.count -= toMove;
+          if (source.count <= 0) {
+            this.slots[slotIndex] = null;
+            return true;
+          }
+        }
+      }
+    } else {
+      // De Mochila (9..35) para Hotbar (0..8)
+      // Prioridade: espaço da mão (selectedHotbarIndex), depois outros slots da barra
+      const sel = this.selectedHotbarIndex;
+      const hotbarOrder = [sel];
+      for (let i = 0; i < 9; i++) {
+        if (i !== sel) hotbarOrder.push(i);
+      }
+
+      // 1. Empilhar em slots iguais na hotbar
+      if (maxStack > 1) {
+        for (const i of hotbarOrder) {
+          const target = this.slots[i];
+          if (target && target.id === source.id && target.count < maxStack) {
+            const space = maxStack - target.count;
+            const toMove = Math.min(space, source.count);
+            target.count += toMove;
+            source.count -= toMove;
+            if (source.count <= 0) {
+              this.slots[slotIndex] = null;
+              return true;
+            }
+          }
+        }
+      }
+
+      // 2. Colocar em slot vazio na hotbar (mão primeiro)
+      for (const i of hotbarOrder) {
+        if (!this.slots[i]) {
+          const toMove = Math.min(maxStack, source.count);
+          this.slots[i] = {
+            id: source.id,
+            count: toMove,
+            durability: source.durability,
+            maxDurability: source.maxDurability
+          };
+          source.count -= toMove;
+          if (source.count <= 0) {
+            this.slots[slotIndex] = null;
+            return true;
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * Ação de Clique Esquerdo em um slot da grade do inventário
    */
   handleSlotLeftClick(slotIndex) {

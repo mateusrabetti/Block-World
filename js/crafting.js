@@ -173,6 +173,42 @@ class CraftingController {
     }
   }
 
+  // Transferência rápida (Shift + Clique) no slot de saída do Crafting (Requisito 6B)
+  handleOutputShiftClick(isTable) {
+    let output = this.getOutput(isTable);
+    if (!output) return;
+
+    const grid = this.getGrid(isTable);
+    let craftedAny = false;
+
+    while (output) {
+      const unplaced = this.game.inventory.addItemToHotbarFirst(
+        output.id,
+        output.count,
+        output.durability,
+        output.maxDurability
+      );
+
+      if (unplaced === output.count) {
+        // Sem espaço no inventário
+        break;
+      }
+
+      craftedAny = true;
+      window.recipeManager.consumeIngredients(grid);
+      this.updateMatch(isTable);
+      output = this.getOutput(isTable);
+
+      if (unplaced > 0) {
+        break;
+      }
+    }
+
+    if (craftedAny && this.game.player) {
+      this.game.player.playSound('place');
+    }
+  }
+
   // Devolve todos os itens da grade para o inventário ao fechar
   returnGridItems(isTable) {
     const grid = this.getGrid(isTable);

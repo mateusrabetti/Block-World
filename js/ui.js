@@ -19,6 +19,7 @@ class UI {
     this.buildHotbarDOM();
     this.buildInventoryDOM();
     this.buildCraftingTableDOM();
+    this.buildFurnaceDOM();
     this.buildCreativeInventoryDOM();
 
     // Eventos de clique nos menus e seletores
@@ -186,6 +187,9 @@ class UI {
     if (index < 0 || index >= 9 || !this.game.inventory) return;
     this.game.inventory.selectedHotbarIndex = index;
     this.updateHotbar();
+    if (this.game.player && this.game.player.arm) {
+      this.game.player.arm.updateHeldItem();
+    }
   }
 
   selectNextHotbarSlot() {
@@ -253,7 +257,20 @@ class UI {
           }
 
           if (e.button === 0) {
-            this.game.crafting.handleGridLeftClick(i, false);
+            if (e.shiftKey) {
+              const grid = this.game.crafting.getGrid(false);
+              const item = grid[i];
+              if (item && item.count > 0) {
+                const unplaced = this.game.inventory.addItemToHotbarFirst(item.id, item.count, item.durability, item.maxDurability);
+                item.count = unplaced;
+                if (item.count <= 0) grid[i] = null;
+                this.game.crafting.updateMatch(false);
+                this.updateInventory();
+                this.updateHotbar();
+              }
+            } else {
+              this.game.crafting.handleGridLeftClick(i, false);
+            }
           } else if (e.button === 2) {
             this.game.crafting.handleGridRightClick(i, false);
           }
@@ -272,7 +289,11 @@ class UI {
         e.preventDefault();
         e.stopPropagation();
         if (e.button === 0) {
-          this.game.crafting.handleOutputClick(false);
+          if (e.shiftKey) {
+            this.game.crafting.handleOutputShiftClick(false);
+          } else {
+            this.game.crafting.handleOutputClick(false);
+          }
           this.updateCraftingGrids();
           this.updateInventory();
           this.updateHotbar();
@@ -317,7 +338,20 @@ class UI {
           }
 
           if (e.button === 0) {
-            this.game.crafting.handleGridLeftClick(i, true);
+            if (e.shiftKey) {
+              const grid = this.game.crafting.getGrid(true);
+              const item = grid[i];
+              if (item && item.count > 0) {
+                const unplaced = this.game.inventory.addItemToHotbarFirst(item.id, item.count, item.durability, item.maxDurability);
+                item.count = unplaced;
+                if (item.count <= 0) grid[i] = null;
+                this.game.crafting.updateMatch(true);
+                this.updateInventory();
+                this.updateHotbar();
+              }
+            } else {
+              this.game.crafting.handleGridLeftClick(i, true);
+            }
           } else if (e.button === 2) {
             this.game.crafting.handleGridRightClick(i, true);
           }
@@ -335,7 +369,11 @@ class UI {
         e.preventDefault();
         e.stopPropagation();
         if (e.button === 0) {
-          this.game.crafting.handleOutputClick(true);
+          if (e.shiftKey) {
+            this.game.crafting.handleOutputShiftClick(true);
+          } else {
+            this.game.crafting.handleOutputClick(true);
+          }
           this.updateCraftingGrids();
           this.updateInventory();
           this.updateHotbar();
@@ -357,6 +395,29 @@ class UI {
       for (let i = 0; i < 9; i++) {
         const slotEl = this.createInventorySlotElement(i);
         tableHotbarGrid.appendChild(slotEl);
+      }
+    }
+  }
+
+  // ===========================================================================
+  // CONSTRUÇÃO DA FORNALHA (MOCHILA E HOTBAR ESPELHADAS)
+  // ===========================================================================
+  buildFurnaceDOM() {
+    const furnaceMainGrid = document.getElementById('furnace-main-grid');
+    const furnaceHotbarGrid = document.getElementById('furnace-hotbar-grid');
+
+    if (furnaceMainGrid && furnaceHotbarGrid) {
+      furnaceMainGrid.innerHTML = '';
+      furnaceHotbarGrid.innerHTML = '';
+
+      for (let i = 9; i < 36; i++) {
+        const slotEl = this.createInventorySlotElement(i);
+        furnaceMainGrid.appendChild(slotEl);
+      }
+
+      for (let i = 0; i < 9; i++) {
+        const slotEl = this.createInventorySlotElement(i);
+        furnaceHotbarGrid.appendChild(slotEl);
       }
     }
   }
@@ -417,7 +478,7 @@ class UI {
       ];
     } else if (category === 'items') {
       items = [
-        ITEM_COAL, ITEM_IRON_INGOT, ITEM_STICK, ITEM_PORKCHOP
+        ITEM_COAL, ITEM_IRON_INGOT, ITEM_STICK, ITEM_PORKCHOP, ITEM_COOKED_PORKCHOP
       ];
     }
 
@@ -498,7 +559,21 @@ class UI {
       }
 
       if (e.button === 0) {
-        this.game.inventory.handleSlotLeftClick(index);
+        if (e.shiftKey) {
+          // Transferência rápida (Shift + Clique Esquerdo)
+          let transferredToFurnace = false;
+          if (this.game.state === 'FURNACE' && this.game.furnace && this.game.furnace.currentFurnacePos) {
+            transferredToFurnace = this.game.furnace.transferFromInventorySlot(index);
+          }
+          if (!transferredToFurnace) {
+            this.game.inventory.quickMoveSlot(index);
+            if (this.game.player) {
+              this.game.player.playSound('place');
+            }
+          }
+        } else {
+          this.game.inventory.handleSlotLeftClick(index);
+        }
       } else if (e.button === 2) {
         this.game.inventory.handleSlotRightClick(index);
       }
@@ -611,7 +686,7 @@ class UI {
 
   initInventoryMouseEvents() {
     window.addEventListener('mousemove', (e) => {
-      if ((this.game.state === 'INVENTORY' || this.game.state === 'CRAFTING_TABLE') && this.cursorItemEl) {
+      if ((this.game.state === 'INVENTORY' || this.game.state === 'CRAFTING_TABLE' || this.game.state === 'FURNACE') && this.cursorItemEl) {
         this.cursorItemEl.style.left = `${e.clientX}px`;
         this.cursorItemEl.style.top = `${e.clientY}px`;
       }

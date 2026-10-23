@@ -31,6 +31,10 @@ class Player {
     // Modo de Voo
     this.isFlying = false;
 
+    // PvP 1.8: Janela curta de invulnerabilidade (i-frames: ~500ms)
+    this.invulnerableTimer = 0;
+    this.knockbackTimer = 0; // Preserva o impulso horizontal de knockback sem anulação imediata por input
+
     // Alvo atual do raycast
     this.targetBlock = null;
 
@@ -254,8 +258,27 @@ class Player {
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
       osc.start(now);
       osc.stop(now + 0.14);
+    } else if (type === 'door') {
+      // Som de porta de madeira abrindo / fechando
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.linearRampToValueAtTime(180, now + 0.12);
+      gain.gain.setValueAtTime(0.20, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+      osc.start(now);
+      osc.stop(now + 0.15);
+    } else if (type === 'hit') {
+      // Som de golpe de combate PvP
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.10);
+      gain.gain.setValueAtTime(0.28, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.10);
+      osc.start(now);
+      osc.stop(now + 0.10);
     }
   }
+
 
   // Rotação da câmera pelo mouse
   handleMouseMove(deltaX, deltaY) {
@@ -268,6 +291,11 @@ class Player {
 
   // Atualização por quadro (física, câmera e mira)
   update(dt, inputKeys) {
+    if (this.invulnerableTimer > 0) {
+      this.invulnerableTimer -= dt;
+      if (this.invulnerableTimer < 0) this.invulnerableTimer = 0;
+    }
+
     if (window.game && window.game.gameMode !== 'creative') {
       this.isFlying = false;
     }
@@ -333,10 +361,14 @@ class Player {
       const targetVelX = moveX * speed;
       const targetVelZ = moveZ * speed;
 
-      const accel = this.physics.onGround ? this.accelGround : this.accelAir;
-      const lerpFactor = Math.min(1.0, accel * dt);
-      this.velocity.x += (targetVelX - this.velocity.x) * lerpFactor;
-      this.velocity.z += (targetVelZ - this.velocity.z) * lerpFactor;
+      if (this.knockbackTimer > 0) {
+        this.knockbackTimer -= dt;
+      } else {
+        const accel = this.physics.onGround ? this.accelGround : this.accelAir;
+        const lerpFactor = Math.min(1.0, accel * dt);
+        this.velocity.x += (targetVelX - this.velocity.x) * lerpFactor;
+        this.velocity.z += (targetVelZ - this.velocity.z) * lerpFactor;
+      }
 
       // Pulo normal
       if (inputKeys.jump && this.physics.onGround) {
@@ -362,10 +394,12 @@ class Player {
     // 4. Raycasting para detecção do bloco em foco
     this.updateTargetBlock();
 
-    // 5. Culling de Chunks por distância do jogador (Otimização para 144 chunks)
+    // 5. Culling de Chunks por distância do jogador configurável (Opções Gráficas)
     if (this.world) {
-      this.world.updateChunkVisibility(this.position, 6);
+      const renderDist = (window.game && window.game.renderDistance) ? window.game.renderDistance : 5;
+      this.world.updateChunkVisibility(this.position, renderDist);
     }
+
 
     // 6. Atualiza o braço em primeira pessoa e suas animações
     if (this.arm) {
@@ -375,13 +409,53 @@ class Player {
     }
   }
 
-  // Raycast de combate: ataca entidade em foco à frente (Requisitos 38, 39, 40)
+  // Raycast de combate: ataca entidade ou jogador em foco à frente (PvP 1.8 e Mobs)
   attackTargetOrEntity() {
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
 
-    // Busca entidade à frente (< 3.2m)
-    const entity = window.game.entityManager ? window.game.entityManager.findEntityInCrosshair(this.camera.position, dir, 3.2) : null;
+    // Distância até o primeiro bloco sólido na mira (impede acertar alvos através de paredes)
+    const blockHit = this.targetBlock;
+    const blockDist = (blockHit && blockHit.distance !== undefined) ? blockHit.distance : 999;
+
+    // 1. PvP 1.8: Verifica se há outro jogador conectado na mira (alcance de até 3.5m, respeitando paredes)
+    if (window.game && window.game.multiplayer) {
+      const maxPvPDist = Math.min(3.5, blockDist);
+      const hitPlayer = maxPvPDist > 0.4 ? window.game.multiplayer.findPlayerInCrosshair(this.camera.position, dir, maxPvPDist) : null;
+      if (hitPlayer) {
+        const heldItem = this.inventory.getSelectedHotbarItem();
+        const def = heldItem ? getItemOrBlockDef(heldItem.id) : null;
+
+        // Dano PvP baseado na arma equipada
+        let damage = 1; // Desarmado (1 HP = meio coração)
+        if (def && def.damage) {
+          damage = def.damage;
+        }
+
+        const isSprinting = !!(this.physics && !this.physics.isSneaking && (this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z > 25));
+        window.game.multiplayer.sendAttack(hitPlayer.id, damage, isSprinting, this.yaw, this.position);
+
+        this.playSound('hit');
+
+        if (this.arm) {
+          this.arm.triggerSwing();
+        }
+
+        if (window.game.particles) {
+          window.game.particles.spawnHitSparks(hitPlayer.position);
+        }
+
+        if (heldItem && def?.isTool && window.game.mining) {
+          window.game.mining.consumeToolDurability();
+        }
+
+        return true;
+      }
+    }
+
+    // 2. Busca mob/entidade à frente (< 3.2m, respeitando paredes)
+    const maxMobDist = Math.min(3.2, blockDist);
+    const entity = (window.game.entityManager && maxMobDist > 0.4) ? window.game.entityManager.findEntityInCrosshair(this.camera.position, dir, maxMobDist) : null;
 
     if (entity) {
       const heldItem = this.inventory.getSelectedHotbarItem();
@@ -394,11 +468,15 @@ class Player {
         damage = def.damage;
       }
 
-      entity.takeDamage(damage, 'player');
+      entity.takeDamage(damage, 'player', this.position);
 
       // Animação de corte/ataque do braço
       if (this.arm) {
         this.arm.triggerSwing();
+      }
+
+      if (window.game.particles) {
+        window.game.particles.spawnHitSparks(entity.position);
       }
 
       // Reduz durabilidade da espada / ferramenta
@@ -411,6 +489,51 @@ class Player {
 
     return false; // Nenhuma entidade atingida
   }
+
+  // Aplica knockback no jogador local (PvP 1.8 ou golpes)
+  applyKnockback(kbX, kbY, kbZ) {
+    this.knockbackTimer = 0.28; // Permite que o impulso de knockback persista livremente
+    this.velocity.x = Math.max(-16, Math.min(16, this.velocity.x * 0.2 + kbX));
+    this.velocity.y = Math.max(this.velocity.y, 0) + (kbY || 3.8);
+    this.velocity.z = Math.max(-16, Math.min(16, this.velocity.z * 0.2 + kbZ));
+    this.physics.onGround = false;
+  }
+
+  // Helpers para porta de madeira
+  isDoorBlock(type) {
+    return type === BLOCK_DOOR_LOWER || type === BLOCK_DOOR_UPPER ||
+           type === BLOCK_DOOR_LOWER_OPEN || type === BLOCK_DOOR_UPPER_OPEN;
+  }
+
+  toggleDoor(x, y, z, syncMultiplayer = true) {
+    const clickedType = this.world.getBlock(x, y, z);
+    if (!this.isDoorBlock(clickedType)) return;
+
+    let lowerY = y;
+    let upperY = y + 1;
+
+    if (clickedType === BLOCK_DOOR_UPPER || clickedType === BLOCK_DOOR_UPPER_OPEN) {
+      lowerY = y - 1;
+      upperY = y;
+    }
+
+    const currentLower = this.world.getBlock(x, lowerY, z);
+    const isOpen = (currentLower === BLOCK_DOOR_LOWER_OPEN);
+
+    const newLower = isOpen ? BLOCK_DOOR_LOWER : BLOCK_DOOR_LOWER_OPEN;
+    const newUpper = isOpen ? BLOCK_DOOR_UPPER : BLOCK_DOOR_UPPER_OPEN;
+
+    this.world.setBlock(x, lowerY, z, newLower);
+    this.world.setBlock(x, upperY, z, newUpper);
+
+    this.playSound('door');
+
+    if (syncMultiplayer && window.game && window.game.multiplayer) {
+      window.game.multiplayer.sendDoorToggle(x, lowerY, z, !isOpen);
+    }
+    return !isOpen;
+  }
+
 
   // Atualiza bloco sob a mira
   updateTargetBlock() {
@@ -444,9 +567,33 @@ class Player {
       window.game.furnace.removeFurnaceAt(x, y, z);
     }
 
+    // Se estiver quebrando uma porta, remove a outra metade correspondente
+    if (blockType === BLOCK_DOOR_LOWER || blockType === BLOCK_DOOR_LOWER_OPEN) {
+      const above = this.world.getBlock(x, y + 1, z);
+      if (above === BLOCK_DOOR_UPPER || above === BLOCK_DOOR_UPPER_OPEN) {
+        this.world.setBlock(x, y + 1, z, BLOCK_AIR);
+        if (window.game && window.game.multiplayer) {
+          window.game.multiplayer.sendBlockChange(x, y + 1, z, BLOCK_AIR);
+        }
+      }
+    } else if (blockType === BLOCK_DOOR_UPPER || blockType === BLOCK_DOOR_UPPER_OPEN) {
+      const below = this.world.getBlock(x, y - 1, z);
+      if (below === BLOCK_DOOR_LOWER || below === BLOCK_DOOR_LOWER_OPEN) {
+        this.world.setBlock(x, y - 1, z, BLOCK_AIR);
+        if (window.game && window.game.multiplayer) {
+          window.game.multiplayer.sendBlockChange(x, y - 1, z, BLOCK_AIR);
+        }
+      }
+    }
+
     // Altera no mundo
     this.world.setBlock(x, y, z, BLOCK_AIR);
     this.playSound('break');
+
+    if (window.game && window.game.multiplayer) {
+      window.game.multiplayer.sendBlockChange(x, y, z, BLOCK_AIR);
+    }
+
 
     if (this.arm) {
       this.arm.triggerSwing();
@@ -465,35 +612,41 @@ class Player {
   }
 
   // Ação de Colocar Bloco ou Interagir (Clique Direito)
-  placeBlock() {
+  placeBlock(isContinuous = false) {
     if (!this.targetBlock) return;
 
-    // 1. Interação com a Fornalha: abre a interface de fundição (Requisito 21)
-    if (this.targetBlock.type === BLOCK_FURNACE) {
-      if (window.game && window.game.furnace) {
-        window.game.furnace.openUI(
-          this.targetBlock.block.x,
-          this.targetBlock.block.y,
-          this.targetBlock.block.z
-        );
+    // Se não for colocação contínua (segurando o botão), permite abrir interfaces ou alternar portas
+    if (!isContinuous) {
+      // 1. Interação com a Porta de Madeira: abre ou fecha
+      if (this.isDoorBlock(this.targetBlock.type)) {
+        this.toggleDoor(this.targetBlock.block.x, this.targetBlock.block.y, this.targetBlock.block.z);
         return;
+      }
+
+      // 2. Interação com a Fornalha: abre a interface de fundição (Requisito 21)
+      if (this.targetBlock.type === BLOCK_FURNACE) {
+        if (window.game && window.game.furnace) {
+          window.game.furnace.openUI(
+            this.targetBlock.block.x,
+            this.targetBlock.block.y,
+            this.targetBlock.block.z
+          );
+          return;
+        }
+      }
+
+      // 3. Interação com a Bancada de Trabalho: abre a grade 3x3 de crafting
+      if (this.targetBlock.type === BLOCK_CRAFTING_TABLE) {
+        if (window.game && typeof window.game.openCraftingTable === 'function') {
+          window.game.openCraftingTable();
+          return;
+        }
       }
     }
 
-    // 2. Interação com a Bancada de Trabalho: abre a grade 3x3 de crafting
-    if (this.targetBlock.type === BLOCK_CRAFTING_TABLE) {
-      if (window.game && typeof window.game.openCraftingTable === 'function') {
-        window.game.openCraftingTable();
-        return;
-      }
-    }
-
-    // 3. Obtém o item atualmente selecionado na Hotbar
+    // 4. Obtém o item atualmente selecionado na Hotbar
     const hotbarItem = this.inventory.getSelectedHotbarItem();
     if (!hotbarItem || hotbarItem.count <= 0) return;
-
-    // Itens (ferramentas, gravetos, lingotes, etc.) não são blocos colocáveis
-    if (isItem(hotbarItem.id)) return;
 
     const target = this.targetBlock.block;
     const normal = this.targetBlock.normal;
@@ -502,15 +655,54 @@ class Player {
     const placeY = target.y + normal.y;
     const placeZ = target.z + normal.z;
 
-    // 4. Limites do mundo
+    // Se estiver segurando uma Porta de Madeira (ITEM_WOODEN_DOOR)
+    if (hotbarItem.id === ITEM_WOODEN_DOOR) {
+      if (this.physics.overlapsPlayer(placeX, placeY, placeZ, this.position) ||
+          this.physics.overlapsPlayer(placeX, placeY + 1, placeZ, this.position)) {
+        return;
+      }
+      if (window.game && window.game.multiplayer && window.game.multiplayer.remotePlayers) {
+        for (const [id, remote] of window.game.multiplayer.remotePlayers) {
+          if (remote && remote.position &&
+             (this.physics.overlapsPlayer(placeX, placeY, placeZ, remote.position) ||
+              this.physics.overlapsPlayer(placeX, placeY + 1, placeZ, remote.position))) {
+            return;
+          }
+        }
+      }
+      if (this.placeDoor(placeX, placeY, placeZ)) {
+        this.updateTargetBlock();
+      }
+      return;
+    }
+
+    // Itens comuns não são blocos colocáveis
+    if (isItem(hotbarItem.id)) return;
+
+    // 5. Limites do mundo
     if (!this.world.inBounds(placeX, placeY, placeZ)) return;
 
-    // 5. Não sobrepor o corpo do jogador
+    // Não colocar dentro de bloco sólido já existente
+    const currentAtTarget = this.world.getBlock(placeX, placeY, placeZ);
+    if (currentAtTarget !== BLOCK_AIR && currentAtTarget !== BLOCK_WATER) {
+      return;
+    }
+
+    // 6. Não sobrepor o corpo do jogador local
     if (this.physics.overlapsPlayer(placeX, placeY, placeZ, this.position)) {
       return;
     }
 
-    // 6. Posiciona o bloco no mundo
+    // Não sobrepor o corpo de outros jogadores na sessão multiplayer
+    if (window.game && window.game.multiplayer && window.game.multiplayer.remotePlayers) {
+      for (const [id, remote] of window.game.multiplayer.remotePlayers) {
+        if (remote && remote.position && this.physics.overlapsPlayer(placeX, placeY, placeZ, remote.position)) {
+          return;
+        }
+      }
+    }
+
+    // 7. Posiciona o bloco no mundo
     const placed = this.world.setBlock(placeX, placeY, placeZ, hotbarItem.id);
     if (placed) {
       this.playSound('place');
@@ -519,12 +711,38 @@ class Player {
         this.arm.triggerPunch();
       }
 
+      if (window.game && window.game.multiplayer) {
+        window.game.multiplayer.sendBlockChange(placeX, placeY, placeZ, hotbarItem.id);
+      }
+
       // Consome 1 unidade apenas no modo Sobrevivência
       if (window.game && window.game.gameMode !== 'creative') {
         this.inventory.consumeSelectedItem();
       }
       this.updateTargetBlock();
     }
+
+  }
+
+  // Posiciona a porta de 2 blocos de altura
+  placeDoor(placeX, placeY, placeZ) {
+    if (!this.world.inBounds(placeX, placeY, placeZ) || !this.world.inBounds(placeX, placeY + 1, placeZ)) return false;
+    if (this.world.getBlock(placeX, placeY, placeZ) !== BLOCK_AIR || this.world.getBlock(placeX, placeY + 1, placeZ) !== BLOCK_AIR) return false;
+    if (!this.world.isSolid(placeX, placeY - 1, placeZ)) return false;
+
+    this.world.setBlock(placeX, placeY, placeZ, BLOCK_DOOR_LOWER);
+    this.world.setBlock(placeX, placeY + 1, placeZ, BLOCK_DOOR_UPPER);
+    this.playSound('place');
+
+    if (this.arm) this.arm.triggerPunch();
+    if (window.game && window.game.gameMode !== 'creative' && this.inventory) {
+      this.inventory.consumeSelectedItem();
+    }
+    if (window.game && window.game.multiplayer) {
+      window.game.multiplayer.sendBlockChange(placeX, placeY, placeZ, BLOCK_DOOR_LOWER);
+      window.game.multiplayer.sendBlockChange(placeX, placeY + 1, placeZ, BLOCK_DOOR_UPPER);
+    }
+    return true;
   }
 
   // Ação de Comer Alimento (Clique Direito com Carne Crua / Assada)

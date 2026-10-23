@@ -99,6 +99,13 @@ class Bandit extends Entity {
     rLegMesh.position.set(0, -0.34, 0);
     this.rightLeg.add(rLegMesh);
     this.mesh.add(this.rightLeg);
+
+    this.mesh.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+      }
+    });
   }
 
   update(dt) {
@@ -125,8 +132,10 @@ class Bandit extends Entity {
     const distHoriz = Math.sqrt(dx * dx + dz * dz);
     const totalDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-    // Persegue o jogador se estiver dentro do raio de detecção
-    if (distHoriz < this.detectRange && Math.abs(dy) < 8) {
+    // Se estiver sob efeito de knockback recente, o impulso prevalece sobre a IA
+    if (this.knockbackTimer > 0) {
+      this.knockbackTimer -= dt;
+    } else if (distHoriz < this.detectRange && Math.abs(dy) < 8) {
       // Rotaciona na direção do jogador
       this.yaw = Math.atan2(dx, dz);
 
@@ -201,6 +210,34 @@ class Bandit extends Entity {
     // Causa exatamente 3 de dano (1 coração e meio)
     if (this.game.health) {
       this.game.health.takeDamage(3, 'bandit');
+    }
+  }
+
+  // Drops de itens ao ser derrotado pelo jogador
+  dropItems() {
+    if (!this.game.drops) return;
+    // Bandido dropa de 1 a 2 gravetos (100%) e tem 35% de chance de dropar 1 carvão
+    const stickCount = 1 + Math.floor(Math.random() * 2);
+    this.game.drops.spawnDrop(
+      this.position.x,
+      this.position.y + 0.3,
+      this.position.z,
+      ITEM_STICK,
+      stickCount
+    );
+
+    if (Math.random() < 0.35) {
+      this.game.drops.spawnDrop(
+        this.position.x,
+        this.position.y + 0.3,
+        this.position.z,
+        ITEM_COAL,
+        1
+      );
+    }
+
+    if (this.game.ui) {
+      this.game.ui.showToast(`O bandido dropou recursos!`);
     }
   }
 

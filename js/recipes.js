@@ -161,7 +161,17 @@ class RecipeManager {
       [BLOCK_STONE, null,        BLOCK_STONE],
       [BLOCK_STONE, BLOCK_STONE, BLOCK_STONE]
     ], { id: BLOCK_FURNACE, count: 1 });
+
+    // -------------------------------------------------------------------------
+    // RECEITA DA PORTA DE MADEIRA (GRADE 3x3: 2 colunas x 3 linhas = 3 Portas)
+    // -------------------------------------------------------------------------
+    this.addShapedRecipe('wooden_door', [
+      [BLOCK_PLANKS, BLOCK_PLANKS],
+      [BLOCK_PLANKS, BLOCK_PLANKS],
+      [BLOCK_PLANKS, BLOCK_PLANKS]
+    ], { id: ITEM_WOODEN_DOOR, count: 3 });
   }
+
 
   addShapelessRecipe(id, ingredients, result) {
     this.recipes.push({

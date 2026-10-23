@@ -18,6 +18,11 @@ const BLOCK_BRICKS = 11;
 const BLOCK_WATER = 12;
 const BLOCK_CRAFTING_TABLE = 13;
 const BLOCK_FURNACE = 14;
+const BLOCK_DOOR_LOWER = 15;
+const BLOCK_DOOR_UPPER = 16;
+const BLOCK_DOOR_LOWER_OPEN = 17;
+const BLOCK_DOOR_UPPER_OPEN = 18;
+
 
 // Pseudo-ruído determinístico para geração de texturas procedurais
 function pseudoNoise(x, y, seed = 1) {
@@ -438,6 +443,76 @@ const tileFurnaceTop = drawTile((ctx) => {
   ctx.fillRect(15, 0, 1, 16);
 });
 
+// Tile 19: Porta Madeira Inferior - Painel de madeira clássico com maçaneta de ferro
+const tileDoorBottom = drawTile((ctx) => {
+  const woodBase = ['#926540', '#855b38', '#9e6e45', '#79502f', '#a8764b'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      const idx = Math.floor(pseudoNoise(x, y, 91) * woodBase.length);
+      ctx.fillStyle = woodBase[idx];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  // Moldura externa da porta
+  ctx.fillStyle = '#59381e';
+  ctx.strokeRect(0.5, 0.5, 15, 15);
+  // Painel rebaixado interno com sombra
+  ctx.fillStyle = '#503319';
+  ctx.fillRect(3, 3, 10, 10);
+  ctx.fillStyle = '#8b5e38';
+  ctx.fillRect(4, 4, 8, 8);
+  // Detalhe de tábua central
+  ctx.fillStyle = '#503319';
+  ctx.fillRect(4, 8, 8, 1);
+  // Maçaneta e trinco de ferro
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(12, 3, 2, 4);
+  ctx.fillStyle = '#dcdcdc';
+  ctx.fillRect(12, 4, 1, 2);
+});
+
+// Tile 20: Porta Madeira Superior - Grade com janelinhas vazadas estilizadas
+const tileDoorTop = drawTile((ctx) => {
+  const woodBase = ['#926540', '#855b38', '#9e6e45', '#79502f', '#a8764b'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      const idx = Math.floor(pseudoNoise(x, y, 92) * woodBase.length);
+      ctx.fillStyle = woodBase[idx];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  // Moldura externa da porta
+  ctx.fillStyle = '#59381e';
+  ctx.strokeRect(0.5, 0.5, 15, 15);
+  // Duas janelas com aberturas vazadas / vidro fosco
+  ctx.fillStyle = '#2d1b0c';
+  ctx.fillRect(3, 3, 4, 10);
+  ctx.fillRect(9, 3, 4, 10);
+  // Vidro escurecido / abertura
+  ctx.fillStyle = '#537d99';
+  ctx.fillRect(4, 4, 2, 8);
+  ctx.fillRect(10, 4, 2, 8);
+  // Travessa central
+  ctx.fillStyle = '#59381e';
+  ctx.fillRect(4, 7, 2, 1);
+  ctx.fillRect(10, 7, 2, 1);
+  // Dobradiça de ferro na borda
+  ctx.fillStyle = '#1e1e1e';
+  ctx.fillRect(1, 2, 2, 3);
+  ctx.fillRect(1, 11, 2, 3);
+});
+
+// Tile 21: Borda lateral estreita da porta de madeira
+const tileDoorSide = drawTile((ctx) => {
+  ctx.fillStyle = '#7a5130';
+  ctx.fillRect(0, 0, 16, 16);
+  ctx.fillStyle = '#946640';
+  ctx.fillRect(2, 0, 12, 16);
+  ctx.fillStyle = '#5c391f';
+  ctx.fillRect(0, 0, 2, 16);
+  ctx.fillRect(14, 0, 2, 16);
+});
+
 // =============================================================================
 // Texture Atlas (6 colunas x 6 linhas = 36 slots, 96x96 px)
 // =============================================================================
@@ -460,8 +535,12 @@ const ALL_TILES = [
   tileCraftingTableTop,   // 15
   tileFurnaceFront,       // 16
   tileFurnaceSide,        // 17
-  tileFurnaceTop          // 18
+  tileFurnaceTop,         // 18
+  tileDoorBottom,         // 19
+  tileDoorTop,            // 20
+  tileDoorSide            // 21
 ];
+
 
 const ATLAS_COLS = 6;
 const ATLAS_ROWS = 6;
@@ -483,11 +562,12 @@ atlasTexture.magFilter = THREE.NearestFilter;
 atlasTexture.minFilter = THREE.NearestFilter;
 atlasTexture.generateMipmaps = false;
 
-// Materiais reutilizáveis
+// Materiais reutilizáveis com suporte a Vertex Colors para Ambient Occlusion (Smooth Lighting)
 const BLOCK_MATERIAL_OPAQUE = new THREE.MeshLambertMaterial({
   map: atlasTexture,
   transparent: false,
-  alphaTest: 0.5
+  alphaTest: 0.5,
+  vertexColors: true
 });
 
 const BLOCK_MATERIAL_TRANSPARENT = new THREE.MeshLambertMaterial({
@@ -495,8 +575,133 @@ const BLOCK_MATERIAL_TRANSPARENT = new THREE.MeshLambertMaterial({
   transparent: true,
   opacity: 0.72,
   depthWrite: false,
+  side: THREE.DoubleSide,
+  vertexColors: true
+});
+
+// =============================================================================
+// Material Especial para Água (Ultra Shaders com reflexão do céu/nuvens, Fresnel e ondulação)
+// =============================================================================
+let waterSkyCanvas = null;
+let waterSkyCtx = null;
+let waterSkyTexture = null;
+
+if (typeof document !== 'undefined') {
+  waterSkyCanvas = document.createElement('canvas');
+  waterSkyCanvas.width = 128;
+  waterSkyCanvas.height = 64;
+  waterSkyCtx = waterSkyCanvas.getContext('2d');
+  waterSkyTexture = new THREE.CanvasTexture(waterSkyCanvas);
+  waterSkyTexture.mapping = THREE.EquirectangularReflectionMapping;
+}
+
+const BLOCK_MATERIAL_WATER = new THREE.MeshPhongMaterial({
+  color: 0x245878, // Azul ardósia profundo de lago montanhoso como na foto de referência
+  emissive: 0x051824,
+  specular: 0x90e0ef,
+  shininess: 90,
+  reflectivity: 0.70,
+  envMap: waterSkyTexture,
+  transparent: true,
+  opacity: 0.78,
+  depthWrite: false,
   side: THREE.DoubleSide
 });
+
+function updateWaterReflectionTexture(skyHex, sunHex, sunsetFactor = 0.0, isNight = false) {
+  if (!waterSkyCtx || !waterSkyTexture) return;
+  const w = 128, h = 64;
+  const skyCol = new THREE.Color(skyHex);
+  const sunCol = new THREE.Color(sunHex);
+
+  // Gradiente vertical do céu e atmosfera refletidos no lago
+  const grad = waterSkyCtx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, skyCol.getStyle());
+
+  // Horizonte com difusão de luz
+  const horizCol = skyCol.clone().lerp(sunCol, 0.45);
+  grad.addColorStop(0.50, horizCol.getStyle());
+
+  // Faixa de nuvens iluminadas na linha d'água (rosada/pêssego no dia e entardecer, ardósia à noite)
+  const cloudTint = isNight ? '#162338' : (sunsetFactor > 0.3 ? '#ffbf85' : '#fce1d0');
+  grad.addColorStop(0.65, cloudTint);
+
+  // Profundidade escura da água
+  grad.addColorStop(1, isNight ? '#050c16' : '#142533');
+
+  waterSkyCtx.fillStyle = grad;
+  waterSkyCtx.fillRect(0, 0, w, h);
+
+  // Brilho especular refletido na superfície (Sol dourado no Dia, Luar Ciano na Noite)
+  const spotX = Math.floor(w * 0.65);
+  const spotGlow = waterSkyCtx.createRadialGradient(spotX, h * 0.45, 1, spotX, h * 0.45, isNight ? 18 : 22);
+
+  if (isNight) {
+    // Reflexo da lua ciano brilhante (Imagem 2)
+    spotGlow.addColorStop(0, 'rgba(210, 248, 255, 0.90)');
+    spotGlow.addColorStop(0.35, 'rgba(0, 180, 240, 0.45)');
+    spotGlow.addColorStop(1, 'rgba(0, 180, 240, 0.0)');
+  } else {
+    // Reflexo do sol dourado e nuvens pêssego (Imagem 1)
+    spotGlow.addColorStop(0, 'rgba(255, 252, 230, 0.95)');
+    spotGlow.addColorStop(0.35, 'rgba(255, 210, 140, 0.45)');
+    spotGlow.addColorStop(1, 'rgba(255, 210, 140, 0.0)');
+  }
+
+  waterSkyCtx.fillStyle = spotGlow;
+  waterSkyCtx.fillRect(spotX - 24, h * 0.45 - 24, 48, 48);
+
+  waterSkyTexture.needsUpdate = true;
+}
+
+// =============================================================================
+// Animação Shaders de Água (Efeito Ultra inspirado em Complementary Shaders)
+// =============================================================================
+let lastWaterFrameSec = 0;
+function updateWaterShimmer(timeSec) {
+  if (typeof document === 'undefined' || !atlasCtx || !tileWater) return;
+  // Limita a ~25 FPS para excelente desempenho visual sem sobrecarga
+  if (timeSec - lastWaterFrameSec < 0.04) return;
+  lastWaterFrameSec = timeSec;
+
+  const col = 13 % ATLAS_COLS;
+  const row = Math.floor(13 / ATLAS_COLS);
+  const startX = col * TILE_PX;
+  const startY = row * TILE_PX;
+
+  // Gradiente vibrante de água translúcida (Turquesa / Safira / Espuma suave)
+  const waterShades = ['#0077b6', '#0096c7', '#00b4d8', '#48cae4', '#90e0ef'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      const w = Math.sin(x * 0.45 + timeSec * 3.0) * Math.cos(y * 0.45 + timeSec * 2.2) + Math.sin((x + y) * 0.35 - timeSec * 2.5);
+      const norm = Math.max(0, Math.min(0.999, (w + 2.0) / 4.0));
+      atlasCtx.fillStyle = waterShades[Math.floor(norm * waterShades.length)];
+      atlasCtx.fillRect(startX + x, startY + y, 1, 1);
+    }
+  }
+
+  // Cristas de onda e reflexos cintilantes
+  atlasCtx.fillStyle = 'rgba(255, 255, 255, 0.50)';
+  for (let i = 0; i < 3; i++) {
+    const cx = Math.floor((Math.sin(timeSec * 2.8 + i * 2.1) * 0.5 + 0.5) * 14) + 1;
+    const cy = Math.floor((Math.cos(timeSec * 2.2 + i * 1.8) * 0.5 + 0.5) * 14) + 1;
+    atlasCtx.fillRect(startX + cx, startY + cy, 1, 1);
+  }
+
+  if (atlasTexture) {
+    atlasTexture.needsUpdate = true;
+  }
+}
+
+function resetWaterTile() {
+  if (typeof document === 'undefined' || !atlasCtx || !tileWater) return;
+  const col = 13 % ATLAS_COLS;
+  const row = Math.floor(13 / ATLAS_COLS);
+  atlasCtx.drawImage(tileWater, col * TILE_PX, row * TILE_PX);
+  if (atlasTexture) {
+    atlasTexture.needsUpdate = true;
+  }
+}
 
 // =============================================================================
 // Definições de cada bloco (Propriedades, Colisão, Drops, Texturas)
@@ -701,6 +906,68 @@ const BLOCK_TYPES = {
     // [ +X: Lado(17), -X: Lado(17), +Y: Topo(18), -Y: Fundo Pedra(3), +Z: Frente(16), -Z: Lado(17) ]
     tiles: [17, 17, 18, 3, 16, 17],
     iconTile: 16
+  },
+  [BLOCK_DOOR_LOWER]: {
+    id: BLOCK_DOOR_LOWER,
+    name: 'Porta de Madeira',
+    solid: true,
+    transparent: true,
+    isDoor: true,
+    isDoorLower: true,
+    isOpen: false,
+    breakable: true,
+    hardness: 1.5,
+    preferredTool: 'axe',
+    dropItem: 117, // ITEM_WOODEN_DOOR
+    // [ +X: Lado, -X: Lado, +Y: Topo, -Y: Base, +Z: Frente, -Z: Trás ]
+    tiles: [21, 21, 11, 11, 19, 19],
+    iconTile: 19
+  },
+  [BLOCK_DOOR_UPPER]: {
+    id: BLOCK_DOOR_UPPER,
+    name: 'Porta de Madeira',
+    solid: true,
+    transparent: true,
+    isDoor: true,
+    isDoorUpper: true,
+    isOpen: false,
+    breakable: true,
+    hardness: 1.5,
+    preferredTool: 'axe',
+    dropItem: 117,
+    tiles: [21, 21, 11, 11, 20, 20],
+    iconTile: 20
+  },
+  [BLOCK_DOOR_LOWER_OPEN]: {
+    id: BLOCK_DOOR_LOWER_OPEN,
+    name: 'Porta de Madeira (Aberta)',
+    solid: false,
+    transparent: true,
+    isDoor: true,
+    isDoorLower: true,
+    isOpen: true,
+    breakable: true,
+    hardness: 1.5,
+    preferredTool: 'axe',
+    dropItem: 117,
+    // Rotacionada 90 graus (faces viradas para laterais)
+    tiles: [19, 19, 11, 11, 21, 21],
+    iconTile: 19
+  },
+  [BLOCK_DOOR_UPPER_OPEN]: {
+    id: BLOCK_DOOR_UPPER_OPEN,
+    name: 'Porta de Madeira (Aberta)',
+    solid: false,
+    transparent: true,
+    isDoor: true,
+    isDoorUpper: true,
+    isOpen: true,
+    breakable: true,
+    hardness: 1.5,
+    preferredTool: 'axe',
+    dropItem: 117,
+    tiles: [20, 20, 11, 11, 21, 21],
+    iconTile: 20
   }
 };
 
@@ -762,6 +1029,19 @@ window.BLOCK_BRICKS = BLOCK_BRICKS;
 window.BLOCK_WATER = BLOCK_WATER;
 window.BLOCK_CRAFTING_TABLE = BLOCK_CRAFTING_TABLE;
 window.BLOCK_FURNACE = BLOCK_FURNACE;
+window.BLOCK_DOOR_LOWER = BLOCK_DOOR_LOWER;
+window.BLOCK_DOOR_UPPER = BLOCK_DOOR_UPPER;
+window.BLOCK_DOOR_LOWER_OPEN = BLOCK_DOOR_LOWER_OPEN;
+window.BLOCK_DOOR_UPPER_OPEN = BLOCK_DOOR_UPPER_OPEN;
 window.BLOCK_TYPES = BLOCK_TYPES;
 window.getBlockIconDataUrl = getBlockIconDataUrl;
 window.getTileUVs = getTileUVs;
+window.updateWaterShimmer = updateWaterShimmer;
+window.resetWaterTile = resetWaterTile;
+window.BLOCK_MATERIAL_OPAQUE = BLOCK_MATERIAL_OPAQUE;
+window.BLOCK_MATERIAL_TRANSPARENT = BLOCK_MATERIAL_TRANSPARENT;
+window.BLOCK_MATERIAL_WATER = BLOCK_MATERIAL_WATER;
+window.waterSkyTexture = waterSkyTexture;
+window.updateWaterReflectionTexture = updateWaterReflectionTexture;
+
+

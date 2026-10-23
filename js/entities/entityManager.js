@@ -61,7 +61,12 @@ class EntityManager {
         continue;
       }
 
-      // Culling de processamento para entidades muito distantes (> 65 blocos)
+      // Atualiza o efeito de dano visual continuamente para nunca travar em vermelho
+      if (entity.hurtTimer > 0) {
+        entity.updateHurtEffect(dt);
+      }
+
+      // Culling de processamento para IA e física de entidades muito distantes (> 65 blocos)
       const distSq = entity.position.distanceToSquared(playerPos);
       if (distSq < 65 * 65) {
         entity.update(dt);

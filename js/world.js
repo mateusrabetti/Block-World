@@ -149,15 +149,18 @@ class World {
    * Otimização: Culling de chunks por distância do jogador.
    * Mantém alta taxa de quadros (FPS) renderizando somente chunks visíveis.
    */
-  updateChunkVisibility(playerPos, renderDistanceInChunks = 6) {
+  updateChunkVisibility(playerPos, renderDistanceInChunks = 5, force = false) {
     if (!playerPos) return;
 
     const pcx = Math.floor(playerPos.x / CHUNK_SIZE_X);
     const pcz = Math.floor(playerPos.z / CHUNK_SIZE_Z);
 
-    if (pcx === this.lastPlayerChunkX && pcz === this.lastPlayerChunkZ) return;
+    if (!force && pcx === this.lastPlayerChunkX && pcz === this.lastPlayerChunkZ && renderDistanceInChunks === this.lastRenderDistance) {
+      return;
+    }
     this.lastPlayerChunkX = pcx;
     this.lastPlayerChunkZ = pcz;
+    this.lastRenderDistance = renderDistanceInChunks;
 
     const maxDistSq = renderDistanceInChunks * renderDistanceInChunks;
 

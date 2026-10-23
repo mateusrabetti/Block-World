@@ -1242,3 +1242,289 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   overflow-y: auto;
 }
 
+/* =============================================================================
+   TELAS DE OPÇÕES, CONTROLES, GRÁFICOS E MULTIPLAYER LAN
+   ============================================================================= */
+
+/* Modal Opções */
+.modal-options {
+  max-width: 440px;
+}
+
+/* Modal Controles */
+.modal-controls {
+  max-width: 640px;
+  width: 90vw;
+}
+
+.controls-warning {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid #ef4444;
+  color: #fca5a5;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.controls-list {
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 6px;
+  margin-bottom: 18px;
+}
+
+.controls-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.controls-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+}
+
+.controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 14px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.controls-row:hover {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.controls-row.conflict {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.control-action-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.btn-key-bind {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  min-width: 120px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.18s ease;
+}
+
+.btn-key-bind:hover {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.btn-key-bind.rebinding {
+  background: #f59e0b !important;
+  color: #000000 !important;
+  border-color: #fde047 !important;
+  animation: pulseRebind 0.8s infinite alternate ease-in-out;
+}
+
+@keyframes pulseRebind {
+  from { transform: scale(1); box-shadow: 0 0 4px #f59e0b; }
+  to { transform: scale(1.05); box-shadow: 0 0 16px #fde047; }
+}
+
+.controls-footer-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* Modal Gráficos */
+.modal-graphics {
+  max-width: 960px;
+  width: 94vw;
+}
+
+.graphics-presets-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .graphics-presets-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .graphics-presets-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.preset-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: center;
+  transition: all 0.22s ease;
+  cursor: pointer;
+}
+
+.preset-card:hover {
+  border-color: rgba(56, 189, 248, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.preset-card.active {
+  border-color: #38bdf8;
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.25) 0%, rgba(15, 23, 42, 0.85) 100%);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+}
+
+/* Estilo Especial: Ultra — Shaders */
+.preset-ultra {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: linear-gradient(180deg, rgba(30, 27, 75, 0.75) 0%, rgba(15, 23, 42, 0.85) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.preset-ultra::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #f59e0b, #ec4899, #38bdf8);
+}
+
+.preset-ultra:hover {
+  border-color: #f59e0b;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.3);
+}
+
+.preset-ultra.active {
+  border-color: #f59e0b;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.22) 0%, rgba(15, 23, 42, 0.9) 100%);
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.45);
+}
+
+.preset-badge {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #38bdf8;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.badge-ultra {
+  color: #fbbf24;
+  background: linear-gradient(90deg, #fbbf24, #f43f5e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.preset-card.active .preset-badge {
+  color: #7dd3fc;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+}
+
+.preset-desc {
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: #cbd5e1;
+  text-align: left;
+  margin-bottom: 14px;
+}
+
+.btn-select-preset {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.preset-card.active .btn-select-preset {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.preset-ultra.active .btn-select-preset {
+  background: linear-gradient(90deg, #d97706, #e11d48);
+  color: #ffffff;
+  border-color: #f59e0b;
+}
+
+.graphics-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Modal LAN */
+.modal-lan {
+  max-width: 540px;
+  width: 90vw;
+}
+
+.lan-instructions-box {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 14px 0 18px 0;
+}
+
+.lan-instructions-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #38bdf8;
+  margin-bottom: 6px;
+}
+
+.lan-instructions-text {
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: #94a3b8;
+}
+
+.lan-instructions-text code {
+  background: rgba(0, 0, 0, 0.4);
+  color: #f1f5f9;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+

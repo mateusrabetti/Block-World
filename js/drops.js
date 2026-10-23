@@ -39,17 +39,23 @@ class ItemDrop {
       const def = BLOCK_TYPES[this.itemId];
       const isTrans = def && (def.transparent || def.isLiquid);
       const mat = isTrans ? BLOCK_MATERIAL_TRANSPARENT.clone() : BLOCK_MATERIAL_OPAQUE.clone();
+      mat.vertexColors = false;
+
+      // Atributo de cores com branco puro para compatibilidade total
+      const colors = new Float32Array(24 * 3).fill(1.0);
+      geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
       // Ajusta UVs para cada face do cubinho do drop
       if (def && def.tiles) {
         const uvs = [];
         for (let f = 0; f < 6; f++) {
-          const tileIdx = def.tiles[f];
+          const tileIdx = (def.tiles[f] !== undefined) ? def.tiles[f] : (def.iconTile || 0);
           const { uMin, uMax, vMin, vMax } = getTileUVs(tileIdx);
           uvs.push(uMin, vMax, uMax, vMax, uMin, vMin, uMax, vMin);
         }
         geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
       }
+      geom.computeVertexNormals();
 
       const cubeMesh = new THREE.Mesh(geom, mat);
       group.add(cubeMesh);
@@ -71,6 +77,12 @@ class ItemDrop {
       const planeMesh = new THREE.Mesh(geom, mat);
       group.add(planeMesh);
     }
+
+    group.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+      }
+    });
 
     return group;
   }

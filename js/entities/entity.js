@@ -23,6 +23,7 @@ class Entity {
     this.onGround = false;
     this.hurtTimer = 0; // Timer para efeito visual de piscar em vermelho ao receber dano
     this.isFlashingRed = false;
+    this.knockbackTimer = 0; // Impede a IA do mob de anular o impulso do golpe
 
     // Grupo Three.js da entidade
     this.mesh = new THREE.Group();
@@ -46,25 +47,35 @@ class Entity {
     });
   }
 
-  // Recebe dano de qualquer fonte
-  takeDamage(amount, source = 'generic') {
-    if (this.isDead || amount <= 0) return;
+  // Recebe dano de qualquer fonte com knockback clássico inspirado no Minecraft
+  takeDamage(amount, source = 'generic', attackerPos = null) {
+    // Evita dano duplo/repetido no mesmo golpe (i-frames para entidades)
+    if (this.isDead || amount <= 0 || this.hurtTimer > 0.08) return;
 
     this.health = Math.max(0, this.health - amount);
-    this.hurtTimer = 0.22; // Pisca vermelho por 220ms (entre 150ms e 300ms)
+    this.hurtTimer = 0.22; // Pisca vermelho por 220ms
     this.setFlashRed(true);
 
     // Feedback sonoro de acerto
     this.playHitSound();
 
-    // Aplica knockback suave empurrando a entidade para trás
-    if (this.game.player) {
-      const dx = this.position.x - this.game.player.position.x;
-      const dz = this.position.z - this.game.player.position.z;
-      const len = Math.sqrt(dx * dx + dz * dz) || 1;
-      this.velocity.x += (dx / len) * 3.5;
-      this.velocity.z += (dz / len) * 3.5;
-      this.velocity.y += 2.0;
+    // Aplica knockback direcionado empurrando a entidade para longe do atacante
+    const attacker = attackerPos || (this.game && this.game.player ? this.game.player.position : null);
+    if (attacker) {
+      const dx = this.position.x - attacker.x;
+      const dz = this.position.z - attacker.z;
+      const len = Math.hypot(dx, dz) || 1;
+
+      // Força de knockback estilo Minecraft (~7.5 horizontal + leve elevação vertical)
+      const kbHoriz = 7.5;
+      const kbVert = 4.2;
+
+      // Limita velocidades para evitar acumulação infinita ou atravessar blocos
+      this.velocity.x = Math.max(-14, Math.min(14, (dx / len) * kbHoriz));
+      this.velocity.z = Math.max(-14, Math.min(14, (dz / len) * kbHoriz));
+      this.velocity.y = Math.min(Math.max(this.velocity.y, 0) + kbVert, 7.5);
+      this.onGround = false;
+      this.knockbackTimer = 0.35; // 350ms onde a IA do mob não anula o impulso
     }
 
     if (this.health <= 0) {
@@ -95,7 +106,10 @@ class Entity {
           if (!mat || !mat.color) continue;
           if (isRed) {
             if (mat._originalColor === undefined) {
-              mat._originalColor = mat.color.getHex();
+              const hex = mat.color.getHex();
+              if (hex !== 0xff3333) {
+                mat._originalColor = hex;
+              }
             }
             mat.color.setHex(0xff3333);
           } else if (mat._originalColor !== undefined) {
@@ -133,6 +147,7 @@ class Entity {
   // Morte da entidade
   die() {
     this.isDead = true;
+    this.setFlashRed(false);
     this.dropItems();
     this.dispose();
   }

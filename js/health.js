@@ -55,6 +55,10 @@ class HealthSystem {
     // Efeito sonoro de dano
     this.playHurtSound();
 
+    if (window.game && window.game.multiplayer) {
+      window.game.multiplayer.sendHealthUpdate(this.health);
+    }
+
     // Verifica se morreu
     if (this.health <= 0) {
       this.die(source);
@@ -66,6 +70,9 @@ class HealthSystem {
     if (this.isDead || amount <= 0) return;
     this.health = Math.min(this.maxHealth, this.health + amount);
     this.updateHeartsUI();
+    if (window.game && window.game.multiplayer) {
+      window.game.multiplayer.sendHealthUpdate(this.health);
+    }
   }
 
   // Atualização física e monitoramento de queda por quadro
@@ -147,10 +154,13 @@ class HealthSystem {
     if (reasonEl) {
       if (source === 'fall') {
         reasonEl.textContent = 'Você caiu de um lugar muito alto!';
+      } else if (source === 'pvp') {
+        reasonEl.textContent = 'Você foi derrotado em combate PvP!';
       } else {
         reasonEl.textContent = 'Sua jornada terminou aqui.';
       }
     }
+
 
     // Mostra tela de morte
     if (this.deathScreen) {

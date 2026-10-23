@@ -6,7 +6,16 @@
     "start": "python -m http.server 8080",
     "serve": "npx serve ."
   },
-  "keywords": ["voxel", "minecraft", "threejs", "game", "3d"],
+  "keywords": [
+    "voxel",
+    "minecraft",
+    "threejs",
+    "game",
+    "3d"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
 }

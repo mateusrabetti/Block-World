@@ -407,15 +407,24 @@ class Inventory {
     }
   }
 
-  // Devolve o item do cursor ao inventário (se o menu for fechado com item na mão)
+  // Devolve o item do cursor ao inventário (se o menu for fechado com item na mão, ou dropa no chão se lotado)
   returnCursorItem() {
     if (!this.cursorItem) return;
-    this.addItem(
+    const remaining = this.addItem(
       this.cursorItem.id,
       this.cursorItem.count,
       this.cursorItem.durability,
       this.cursorItem.maxDurability
     );
+    if (remaining > 0 && typeof window !== 'undefined' && window.game && window.game.drops && window.game.player) {
+      window.game.drops.spawnDrop(
+        window.game.player.position.x,
+        window.game.player.position.y + 0.5,
+        window.game.player.position.z,
+        this.cursorItem.id,
+        remaining
+      );
+    }
     this.cursorItem = null;
   }
 

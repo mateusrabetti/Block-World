@@ -41,6 +41,13 @@ class UI {
     this.creativeInventoryOverlayEl = document.getElementById('screen-creative-inventory');
     this.deathScreenEl = document.getElementById('screen-death');
     this.settingsMenuEl = document.getElementById('screen-settings');
+    this.optionsMenuEl = document.getElementById('screen-options');
+    this.controlsMenuEl = document.getElementById('screen-controls');
+    this.graphicsMenuEl = document.getElementById('screen-graphics');
+    this.joinLanMenuEl = document.getElementById('screen-join-lan');
+    this.controlsListContainer = document.getElementById('controls-list-container');
+    this.controlsConflictWarning = document.getElementById('controls-conflict-warning');
+    this.optionsOpenedFromPause = false;
 
     // Elementos do HUD
     this.crosshairEl = document.getElementById('crosshair');
@@ -726,6 +733,16 @@ class UI {
   // GERENCIAMENTO DE MENUS E NAVEGAÇÃO
   // ===========================================================================
   initMenuEvents() {
+    // Menu Principal: CRIAR NOVO MUNDO
+    document.getElementById('btn-main-create-world')?.addEventListener('click', () => {
+      this.showCreateWorldScreen();
+    });
+
+    // Menu Principal: ENTRAR EM MUNDO LAN
+    document.getElementById('btn-main-join-lan')?.addEventListener('click', () => {
+      this.showJoinLanScreen();
+    });
+
     // Menu Principal: JOGAR -> Vai para o Menu de Mundos
     document.getElementById('btn-main-play')?.addEventListener('click', () => {
       this.showWorldsScreen();
@@ -734,6 +751,11 @@ class UI {
     // Menu Principal: MUNDOS -> Vai para o Menu de Mundos
     document.getElementById('btn-main-worlds')?.addEventListener('click', () => {
       this.showWorldsScreen();
+    });
+
+    // Menu Principal: OPÇÕES
+    document.getElementById('btn-main-options')?.addEventListener('click', () => {
+      this.showOptionsMenu(false);
     });
 
     // Menu Principal: CONFIGURAÇÕES
@@ -746,6 +768,9 @@ class UI {
       if (!this.selectedWorldId) return;
       this.game.worldManager.loadWorld(this.selectedWorldId);
       this.game.enterGame();
+      if (this.game.multiplayer && this.game.currentWorldData) {
+        this.game.multiplayer.hostSession(this.game.currentWorldData.name, this.game.currentWorldData.seed, this.game.currentWorldData.mode, {});
+      }
     });
 
     // Tela de Mundos: CRIAR NOVO MUNDO
@@ -805,6 +830,9 @@ class UI {
       const seed = seedInput ? seedInput.value : '';
 
       this.game.worldManager.createNewWorldAndEnter(name, seed, this.selectedMode);
+      if (this.game.multiplayer) {
+        this.game.multiplayer.hostSession(name || 'Mundo', seed || '12345', this.selectedMode, {});
+      }
     };
 
     document.getElementById('btn-confirm-create-world')?.addEventListener('click', handleConfirmCreateWorld);
@@ -819,7 +847,7 @@ class UI {
 
     // Tela de Criação: CANCELAR
     document.getElementById('btn-cancel-create-world')?.addEventListener('click', () => {
-      this.showWorldsScreen();
+      this.showMainMenu();
     });
 
     // Tela de Pausa: CONTINUAR
@@ -827,9 +855,68 @@ class UI {
       this.game.resumeGame();
     });
 
+    // Tela de Pausa: OPÇÕES
+    document.getElementById('btn-pause-options')?.addEventListener('click', () => {
+      this.showOptionsMenu(true);
+    });
+
     // Tela de Pausa: SALVAR E VOLTAR AO MENU
     document.getElementById('btn-pause-menu')?.addEventListener('click', () => {
       this.game.worldManager.exitWorldToMenu();
+    });
+
+    // Submenu de Opções
+    document.getElementById('btn-opt-controls')?.addEventListener('click', () => {
+      this.showControlsMenu();
+    });
+    document.getElementById('btn-opt-graphics')?.addEventListener('click', () => {
+      this.showGraphicsMenu();
+    });
+    document.getElementById('btn-opt-back')?.addEventListener('click', () => {
+      if (this.optionsOpenedFromPause) {
+        this.showPauseMenu();
+      } else {
+        this.showMainMenu();
+      }
+    });
+
+    // Tela de Controles
+    document.getElementById('btn-controls-reset')?.addEventListener('click', () => {
+      this.game.input.resetKeyBindings();
+      this.renderControlsList();
+      this.showToast('Controles restaurados para o padrão');
+    });
+    document.getElementById('btn-controls-back')?.addEventListener('click', () => {
+      this.showOptionsMenu(this.optionsOpenedFromPause);
+    });
+
+    // Tela de Gráficos: Presets (Baixo, Médio, Alto, Ultra)
+    ['low', 'medium', 'high', 'ultra'].forEach(preset => {
+      const card = document.getElementById(`preset-card-${preset}`) || document.getElementById(`preset-${preset}`);
+      if (card) {
+        card.addEventListener('click', () => {
+          this.game.applyGraphicsPreset(preset);
+          this.showGraphicsMenu();
+          const names = { low: 'Baixo', medium: 'Médio', high: 'Alto', ultra: 'Ultra — Shaders' };
+          this.showToast(`Gráficos alterados para: ${names[preset]}`);
+        });
+      }
+    });
+    document.getElementById('btn-graphics-back')?.addEventListener('click', () => {
+      this.showOptionsMenu(this.optionsOpenedFromPause);
+    });
+
+    // Tela de Entrar em Mundo LAN
+    document.getElementById('btn-confirm-join-lan')?.addEventListener('click', () => {
+      const ipInput = document.getElementById('input-lan-ip');
+      const nameInput = document.getElementById('input-lan-player-name');
+      const ip = ipInput?.value?.trim() || '127.0.0.1:8080';
+      const name = nameInput?.value?.trim() || 'Jogador';
+      this.showToast(`Conectando a ${ip}...`);
+      this.game.multiplayer.joinSession(ip, name);
+    });
+    document.getElementById('btn-cancel-join-lan')?.addEventListener('click', () => {
+      this.showMainMenu();
     });
 
     // Tela de Configurações: FECHAR
@@ -854,6 +941,10 @@ class UI {
     this.worldsMenuEl?.classList.add('hidden');
     this.createWorldMenuEl?.classList.add('hidden');
     this.pauseMenuEl?.classList.add('hidden');
+    this.optionsMenuEl?.classList.add('hidden');
+    this.controlsMenuEl?.classList.add('hidden');
+    this.graphicsMenuEl?.classList.add('hidden');
+    this.joinLanMenuEl?.classList.add('hidden');
     this.inventoryOverlayEl?.classList.add('hidden');
     this.craftingTableOverlayEl?.classList.add('hidden');
     this.furnaceOverlayEl?.classList.add('hidden');
@@ -903,6 +994,111 @@ class UI {
   showPauseMenu() {
     this.hideAllMenus();
     this.pauseMenuEl?.classList.remove('hidden');
+  }
+
+  showOptionsMenu(fromPause = false) {
+    this.optionsOpenedFromPause = fromPause;
+    this.hideAllMenus();
+    this.optionsMenuEl?.classList.remove('hidden');
+  }
+
+  showControlsMenu() {
+    this.hideAllMenus();
+    this.renderControlsList();
+    this.controlsMenuEl?.classList.remove('hidden');
+  }
+
+  renderControlsList() {
+    if (!this.controlsListContainer) return;
+    this.controlsListContainer.innerHTML = '';
+
+    const bindings = this.game.input.keyBindings;
+    const descriptions = typeof ACTION_DESCRIPTIONS !== 'undefined' ? ACTION_DESCRIPTIONS : {};
+
+    Object.keys(bindings).forEach(actionKey => {
+      const row = document.createElement('div');
+      row.className = 'control-row';
+
+      const label = document.createElement('span');
+      label.className = 'control-label';
+      label.textContent = descriptions[actionKey] || actionKey;
+
+      const btn = document.createElement('button');
+      btn.className = 'btn-key-bind';
+      btn.textContent = typeof formatKeyCode === 'function' ? formatKeyCode(bindings[actionKey]) : bindings[actionKey];
+      btn.dataset.action = actionKey;
+
+      btn.addEventListener('click', () => {
+        // Cancela rebind pendente
+        document.querySelectorAll('.btn-key-bind.listening').forEach(b => {
+          b.classList.remove('listening');
+          const act = b.dataset.action;
+          b.textContent = typeof formatKeyCode === 'function' ? formatKeyCode(this.game.input.keyBindings[act]) : this.game.input.keyBindings[act];
+        });
+
+        btn.classList.add('listening');
+        btn.textContent = 'Pressione tecla...';
+
+        this.game.input.startRebinding(actionKey, (success, newCode) => {
+          this.renderControlsList();
+        });
+      });
+
+      row.appendChild(label);
+      row.appendChild(btn);
+      this.controlsListContainer.appendChild(row);
+    });
+
+    // Verificação de conflitos
+    const conflicts = this.game.input.getConflictingActions();
+    if (this.controlsConflictWarning) {
+      if (conflicts.length > 0) {
+        this.controlsConflictWarning.textContent = `⚠️ Conflito de teclas detectado em: ${conflicts.map(c => descriptions[c] || c).join(', ')}`;
+        this.controlsConflictWarning.classList.remove('hidden');
+      } else {
+        this.controlsConflictWarning.classList.add('hidden');
+      }
+    }
+  }
+
+  showGraphicsMenu() {
+    this.hideAllMenus();
+    const current = this.game.graphicsPreset || this.game.graphicsQuality || 'medium';
+    ['low', 'medium', 'high', 'ultra'].forEach(p => {
+      const card = document.getElementById(`preset-card-${p}`) || document.getElementById(`preset-${p}`);
+      if (card) {
+        const btn = card.querySelector('.btn-select-preset');
+        if (p === current) {
+          card.classList.add('active');
+          if (btn) {
+            btn.textContent = 'ATIVO';
+            btn.classList.add('active');
+          }
+        } else {
+          card.classList.remove('active');
+          if (btn) {
+            btn.textContent = 'SELECIONAR';
+            btn.classList.remove('active');
+          }
+        }
+      }
+    });
+    this.graphicsMenuEl?.classList.remove('hidden');
+  }
+
+  showJoinLanScreen() {
+    this.hideAllMenus();
+    const ipInput = document.getElementById('input-lan-ip');
+    const nameInput = document.getElementById('input-lan-player-name');
+    if (ipInput && !ipInput.value) {
+      const host = (typeof window !== 'undefined' && window.location.hostname) ? window.location.hostname : '127.0.0.1';
+      const port = (typeof window !== 'undefined' && window.location.port) ? window.location.port : '8080';
+      ipInput.value = `${host}:${port}`;
+    }
+    if (nameInput && !nameInput.value) {
+      nameInput.value = `Jogador_${Math.floor(Math.random() * 900 + 100)}`;
+    }
+    this.joinLanMenuEl?.classList.remove('hidden');
   }
 
   showInventory() {

@@ -26,6 +26,7 @@ class Chunk {
 
     this.opaqueMesh = null;
     this.transparentMesh = null;
+    this.waterMesh = null;
   }
 
   // Índice linear local
@@ -72,10 +73,26 @@ class Chunk {
       if (this.transparentMesh.geometry) this.transparentMesh.geometry.dispose();
       this.transparentMesh = null;
     }
+    if (this.waterMesh) {
+      this.group.remove(this.waterMesh);
+      if (this.waterMesh.geometry) this.waterMesh.geometry.dispose();
+      this.waterMesh = null;
+    }
 
-    // Buffers para malhas opacas e transparentes
-    const opaqueBuffers = { positions: [], normals: [], uvs: [], indices: [] };
-    const transBuffers = { positions: [], normals: [], uvs: [], indices: [] };
+    // Buffers para malhas opacas, transparentes e água
+    const opaqueBuffers = { positions: [], normals: [], uvs: [], colors: [], indices: [] };
+    const transBuffers = { positions: [], normals: [], uvs: [], colors: [], indices: [] };
+    const waterBuffers = { positions: [], normals: [], uvs: [], colors: [], indices: [] };
+
+    // Fatores de sombreamento direcional estilo Minecraft Java
+    const FACE_DIR_SHADES = [
+      0.80, // +X
+      0.80, // -X
+      1.00, // +Y (topo iluminado pelo céu)
+      0.55, // -Y (parte inferior em sombra)
+      0.88, // +Z
+      0.88  // -Z
+    ];
 
     // Definição das 6 faces: [+X, -X, +Y, -Y, +Z, -Z]
     const FACE_DIRS = [
@@ -128,8 +145,14 @@ class Chunk {
           const blockDef = BLOCK_TYPES[blockId];
           if (!blockDef) continue;
 
-          const isTrans = blockDef.transparent || blockDef.isLiquid;
-          const targetBuf = isTrans ? transBuffers : opaqueBuffers;
+          let targetBuf;
+          if (blockId === BLOCK_WATER) {
+            targetBuf = waterBuffers;
+          } else if (blockDef.transparent || blockDef.isLiquid) {
+            targetBuf = transBuffers;
+          } else {
+            targetBuf = opaqueBuffers;
+          }
 
           // Itera pelas 6 faces
           for (let f = 0; f < 6; f++) {
@@ -178,6 +201,8 @@ class Chunk {
             const vertIdxOffset = targetBuf.positions.length / 3;
             const fVerts = FACE_VERTS[f];
 
+            const dirShade = FACE_DIR_SHADES[f];
+
             // Posições dos 4 vértices
             for (let v = 0; v < 4; v++) {
               targetBuf.positions.push(
@@ -196,46 +221,110 @@ class Chunk {
               uMax, vMin  // v3
             );
 
-            // 2 Triângulos por face
-            targetBuf.indices.push(
-              vertIdxOffset,
-              vertIdxOffset + 1,
-              vertIdxOffset + 2,
-              vertIdxOffset,
-              vertIdxOffset + 2,
-              vertIdxOffset + 3
-            );
+            // Cálculo de Oclusão Ambiental (AO / Smooth Lighting) nos 4 vértices
+            const aoVals = [];
+            for (let v = 0; v < 4; v++) {
+              const fv = fVerts[v];
+              const steps = [];
+              if (norm[0] === 0) steps.push([fv[0] === 1 ? 1 : -1, 0, 0]);
+              if (norm[1] === 0) steps.push([0, fv[1] === 1 ? 1 : -1, 0]);
+              if (norm[2] === 0) steps.push([0, 0, fv[2] === 1 ? 1 : -1]);
+
+              const s1 = steps[0];
+              const s2 = steps[1];
+
+              const bSide1 = this.world.getBlock(nwx + s1[0], nwy + s1[1], nwz + s1[2]);
+              const bSide2 = this.world.getBlock(nwx + s2[0], nwy + s2[1], nwz + s2[2]);
+              const bCorner = this.world.getBlock(nwx + s1[0] + s2[0], nwy + s1[1] + s2[1], nwz + s1[2] + s2[2]);
+
+              const solid1 = (bSide1 !== BLOCK_AIR && bSide1 !== BLOCK_WATER);
+              const solid2 = (bSide2 !== BLOCK_AIR && bSide2 !== BLOCK_WATER);
+              const solidCorner = (bCorner !== BLOCK_AIR && bCorner !== BLOCK_WATER);
+
+              let aoFactor = 1.0;
+              if (solid1 && solid2) {
+                aoFactor = 0.50; // Quina bloqueada por dois blocos adjacentes
+              } else {
+                const sum = (solid1 ? 1 : 0) + (solid2 ? 1 : 0) + (solidCorner ? 1 : 0);
+                if (sum === 3) aoFactor = 0.56;
+                else if (sum === 2) aoFactor = 0.72;
+                else if (sum === 1) aoFactor = 0.86;
+              }
+
+              aoVals.push(aoFactor);
+              const bright = aoFactor * dirShade;
+              targetBuf.colors.push(bright, bright, bright * 1.02);
+            }
+
+            // 2 Triângulos por face com diagonal suave
+            if (aoVals[0] + aoVals[2] > aoVals[1] + aoVals[3]) {
+              targetBuf.indices.push(
+                vertIdxOffset,
+                vertIdxOffset + 1,
+                vertIdxOffset + 2,
+                vertIdxOffset,
+                vertIdxOffset + 2,
+                vertIdxOffset + 3
+              );
+            } else {
+              targetBuf.indices.push(
+                vertIdxOffset + 1,
+                vertIdxOffset + 2,
+                vertIdxOffset + 3,
+                vertIdxOffset + 1,
+                vertIdxOffset + 3,
+                vertIdxOffset
+              );
+            }
           }
         }
       }
     }
 
-    // Cria a malha opaca se houver vértices
+    // Cria a malha opaca com vertex colors para AO
     if (opaqueBuffers.positions.length > 0) {
       const geom = new THREE.BufferGeometry();
       geom.setAttribute('position', new THREE.Float32BufferAttribute(opaqueBuffers.positions, 3));
       geom.setAttribute('normal', new THREE.Float32BufferAttribute(opaqueBuffers.normals, 3));
       geom.setAttribute('uv', new THREE.Float32BufferAttribute(opaqueBuffers.uvs, 2));
+      geom.setAttribute('color', new THREE.Float32BufferAttribute(opaqueBuffers.colors, 3));
       geom.setIndex(opaqueBuffers.indices);
 
       this.opaqueMesh = new THREE.Mesh(geom, BLOCK_MATERIAL_OPAQUE);
+      const isShadowPreset = !!(this.world && this.world.game && (this.world.game.graphicsPreset === 'ultra' || this.world.game.graphicsPreset === 'high'));
       this.opaqueMesh.castShadow = false;
-      this.opaqueMesh.receiveShadow = false;
+      this.opaqueMesh.receiveShadow = isShadowPreset;
       this.group.add(this.opaqueMesh);
     }
 
-    // Cria a malha transparente se houver vértices
+    // Cria a malha transparente (vidro, folhas)
     if (transBuffers.positions.length > 0) {
       const geom = new THREE.BufferGeometry();
       geom.setAttribute('position', new THREE.Float32BufferAttribute(transBuffers.positions, 3));
       geom.setAttribute('normal', new THREE.Float32BufferAttribute(transBuffers.normals, 3));
       geom.setAttribute('uv', new THREE.Float32BufferAttribute(transBuffers.uvs, 2));
+      geom.setAttribute('color', new THREE.Float32BufferAttribute(transBuffers.colors, 3));
       geom.setIndex(transBuffers.indices);
 
       this.transparentMesh = new THREE.Mesh(geom, BLOCK_MATERIAL_TRANSPARENT);
       this.transparentMesh.castShadow = false;
       this.transparentMesh.receiveShadow = false;
       this.group.add(this.transparentMesh);
+    }
+
+    // Cria a malha de água com reflexos do céu e nuvens
+    if (waterBuffers.positions.length > 0) {
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(waterBuffers.positions, 3));
+      geom.setAttribute('normal', new THREE.Float32BufferAttribute(waterBuffers.normals, 3));
+      geom.setAttribute('uv', new THREE.Float32BufferAttribute(waterBuffers.uvs, 2));
+      geom.setAttribute('color', new THREE.Float32BufferAttribute(waterBuffers.colors, 3));
+      geom.setIndex(waterBuffers.indices);
+
+      this.waterMesh = new THREE.Mesh(geom, BLOCK_MATERIAL_WATER);
+      this.waterMesh.castShadow = false;
+      this.waterMesh.receiveShadow = false;
+      this.group.add(this.waterMesh);
     }
   }
 
@@ -249,6 +338,11 @@ class Chunk {
       this.group.remove(this.transparentMesh);
       if (this.transparentMesh.geometry) this.transparentMesh.geometry.dispose();
       this.transparentMesh = null;
+    }
+    if (this.waterMesh) {
+      this.group.remove(this.waterMesh);
+      if (this.waterMesh.geometry) this.waterMesh.geometry.dispose();
+      this.waterMesh = null;
     }
   }
 }

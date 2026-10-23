@@ -209,13 +209,22 @@ class CraftingController {
     }
   }
 
-  // Devolve todos os itens da grade para o inventário ao fechar
+  // Devolve todos os itens da grade para o inventário ao fechar (ou dropa no mundo se lotado)
   returnGridItems(isTable) {
     const grid = this.getGrid(isTable);
     for (let i = 0; i < grid.length; i++) {
       const item = grid[i];
       if (item && item.count > 0) {
-        this.game.inventory.addItem(item.id, item.count, item.durability, item.maxDurability);
+        const remaining = this.game.inventory ? this.game.inventory.addItem(item.id, item.count, item.durability, item.maxDurability) : item.count;
+        if (remaining > 0 && this.game.drops && this.game.player) {
+          this.game.drops.spawnDrop(
+            this.game.player.position.x,
+            this.game.player.position.y + 0.5,
+            this.game.player.position.z,
+            item.id,
+            remaining
+          );
+        }
         grid[i] = null;
       }
     }

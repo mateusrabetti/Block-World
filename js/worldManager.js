@@ -185,6 +185,11 @@ class WorldManager {
     }
     this.currentWorldData = null;
 
+    if (this.game.multiplayer) {
+      this.game.multiplayer.disconnect();
+    }
+
+
     if (this.game.ui && exitedId) {
       this.game.ui.selectedWorldId = exitedId;
     }

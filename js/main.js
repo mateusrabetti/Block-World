@@ -34,6 +34,23 @@ class Game {
     this.worldManager = new WorldManager(this);
     this.ui = new UI(this);
     this.input = new Input(this);
+    this.multiplayer = new MultiplayerManager(this);
+    this.particles = (typeof ParticleManager !== 'undefined') ? new ParticleManager(this) : null;
+
+    // Configurações Gráficas (Baixo, Médio, Alto)
+    this.renderDistance = 4;
+    this.graphicsPreset = 'medium';
+    this.graphicsQuality = 'medium';
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const savedPreset = localStorage.getItem('blockworld_graphics_preset');
+        if (savedPreset) {
+          this.graphicsPreset = savedPreset;
+          this.graphicsQuality = savedPreset;
+        }
+      }
+    } catch (e) {}
+    this.applyGraphicsPreset(this.graphicsPreset, false);
 
     // Ajusta o redimensionamento da janela
     window.addEventListener('resize', () => this.onWindowResize());
@@ -46,18 +63,232 @@ class Game {
     requestAnimationFrame(this.animate);
   }
 
+  // Aplica opções gráficas em tempo real (Baixo, Médio, Alto, Ultra — Shaders) com alterações reais
+  applyGraphicsPreset(preset, save = true) {
+    this.graphicsPreset = preset;
+    this.graphicsQuality = preset;
+
+    if (preset === 'low') {
+      // Baixo: 3 chunks de raio, névoa fechada otimizada, sem sombras, máximo FPS
+      this.renderDistance = 3;
+      if (this.scene && this.scene.fog) {
+        this.scene.fog.near = 15;
+        this.scene.fog.far = 48;
+      }
+      if (this.camera) {
+        this.camera.far = 320;
+        this.camera.updateProjectionMatrix();
+      }
+      if (this.renderer) {
+        this.renderer.setPixelRatio(1.0);
+        this.renderer.shadowMap.enabled = false;
+        this.renderer.toneMapping = THREE.NoToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
+      }
+      if (this.sunLight) {
+        this.sunLight.castShadow = false;
+      }
+    } else if (preset === 'ultra') {
+      // Ultra — Shaders: 8 chunks (128 blocos de raio), sombras dinâmicas de 2048px com filtro PCFSoft,
+      // Tone mapping ACES Filmic com exposição cinematográfica, água translúcida ondulante animada,
+      // névoa atmosférica e iluminação aprimorada inspirada no Complementary Shaders
+      this.renderDistance = 8;
+      if (this.scene && this.scene.fog) {
+        this.scene.fog.near = 85;
+        this.scene.fog.far = 220;
+      }
+      if (this.camera) {
+        this.camera.far = 420;
+        this.camera.updateProjectionMatrix();
+      }
+      if (this.renderer && typeof window !== 'undefined') {
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.0));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.15;
+      }
+      if (this.sunLight) {
+        this.sunLight.castShadow = true;
+        if (this.sunLight.shadow) {
+          this.sunLight.shadow.mapSize.width = 2048;
+          this.sunLight.shadow.mapSize.height = 2048;
+          this.sunLight.shadow.bias = -0.0004;
+          this.sunLight.shadow.normalBias = 0.025;
+          this.sunLight.shadow.radius = 2.0;
+          this.sunLight.shadow.camera.near = 1.0;
+          this.sunLight.shadow.camera.far = 280;
+          this.sunLight.shadow.camera.left = -60;
+          this.sunLight.shadow.camera.right = 60;
+          this.sunLight.shadow.camera.top = 60;
+          this.sunLight.shadow.camera.bottom = -60;
+          if (this.sunLight.shadow.camera.updateProjectionMatrix) {
+            this.sunLight.shadow.camera.updateProjectionMatrix();
+          }
+        }
+      }
+    } else if (preset === 'high') {
+      // Alto: 7 chunks de raio (112 blocos), névoa distante ampla, sombras suaves, nitidez máxima
+      this.renderDistance = 7;
+      if (this.scene && this.scene.fog) {
+        this.scene.fog.near = 70;
+        this.scene.fog.far = 160;
+      }
+      if (this.camera) {
+        this.camera.far = 380;
+        this.camera.updateProjectionMatrix();
+      }
+      if (this.renderer && typeof window !== 'undefined') {
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.0));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.NoToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
+      }
+      if (this.sunLight) {
+        this.sunLight.castShadow = true;
+        if (this.sunLight.shadow) {
+          this.sunLight.shadow.mapSize.width = 1024;
+          this.sunLight.shadow.mapSize.height = 1024;
+          this.sunLight.shadow.bias = -0.0005;
+          this.sunLight.shadow.normalBias = 0.02;
+          this.sunLight.shadow.radius = 1.0;
+          this.sunLight.shadow.camera.near = 1.0;
+          this.sunLight.shadow.camera.far = 280;
+          this.sunLight.shadow.camera.left = -60;
+          this.sunLight.shadow.camera.right = 60;
+          this.sunLight.shadow.camera.top = 60;
+          this.sunLight.shadow.camera.bottom = -60;
+          if (this.sunLight.shadow.camera.updateProjectionMatrix) {
+            this.sunLight.shadow.camera.updateProjectionMatrix();
+          }
+        }
+      }
+    } else {
+      // Médio: 5 chunks de raio (80 blocos), equilíbrio ótimo visual e de performance
+      this.renderDistance = 5;
+      if (this.scene && this.scene.fog) {
+        this.scene.fog.near = 35;
+        this.scene.fog.far = 85;
+      }
+      if (this.camera) {
+        this.camera.far = 350;
+        this.camera.updateProjectionMatrix();
+      }
+      if (this.renderer && typeof window !== 'undefined') {
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.BasicShadowMap;
+        this.renderer.toneMapping = THREE.NoToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
+      }
+      if (this.sunLight) {
+        this.sunLight.castShadow = true;
+        if (this.sunLight.shadow) {
+          this.sunLight.shadow.mapSize.width = 512;
+          this.sunLight.shadow.mapSize.height = 512;
+          this.sunLight.shadow.bias = 0;
+          this.sunLight.shadow.normalBias = 0.01;
+          this.sunLight.shadow.radius = 1.0;
+        }
+      }
+    }
+
+    // Efeitos específicos de materiais (Água com reflexos do céu/nuvens e Superfícies)
+    if (typeof BLOCK_MATERIAL_WATER !== 'undefined') {
+      if (preset === 'ultra') {
+        BLOCK_MATERIAL_WATER.color.setHex(0x245878);
+        BLOCK_MATERIAL_WATER.specular.setHex(0x90e0ef);
+        BLOCK_MATERIAL_WATER.shininess = 90;
+        BLOCK_MATERIAL_WATER.reflectivity = 0.70;
+        BLOCK_MATERIAL_WATER.opacity = 0.78;
+        if (typeof waterSkyTexture !== 'undefined') BLOCK_MATERIAL_WATER.envMap = waterSkyTexture;
+      } else if (preset === 'high') {
+        BLOCK_MATERIAL_WATER.color.setHex(0x1d709e);
+        BLOCK_MATERIAL_WATER.specular.setHex(0x60a0c0);
+        BLOCK_MATERIAL_WATER.shininess = 40;
+        BLOCK_MATERIAL_WATER.reflectivity = 0.35;
+        BLOCK_MATERIAL_WATER.opacity = 0.75;
+        if (typeof waterSkyTexture !== 'undefined') BLOCK_MATERIAL_WATER.envMap = waterSkyTexture;
+      } else {
+        BLOCK_MATERIAL_WATER.color.setHex(0x1e88e5);
+        BLOCK_MATERIAL_WATER.specular.setHex(0x000000);
+        BLOCK_MATERIAL_WATER.shininess = 0;
+        BLOCK_MATERIAL_WATER.reflectivity = 0.0;
+        BLOCK_MATERIAL_WATER.envMap = null;
+        BLOCK_MATERIAL_WATER.opacity = preset === 'medium' ? 0.72 : 0.70;
+      }
+    }
+
+    if (preset === 'ultra') {
+      if (typeof BLOCK_MATERIAL_TRANSPARENT !== 'undefined') {
+        BLOCK_MATERIAL_TRANSPARENT.opacity = 0.80;
+        BLOCK_MATERIAL_TRANSPARENT.color.setHex(0xb2ebf2);
+      }
+    } else {
+      if (typeof resetWaterTile === 'function') {
+        resetWaterTile();
+      }
+      if (typeof BLOCK_MATERIAL_TRANSPARENT !== 'undefined') {
+        BLOCK_MATERIAL_TRANSPARENT.opacity = 0.72;
+        BLOCK_MATERIAL_TRANSPARENT.color.setHex(0xffffff);
+      }
+    }
+
+    // Gerencia nuvens volumétricas, abóbada atmosférica, halo solar/lunar e raios atmosféricos
+    if (this.worldTime) {
+      const showClouds = (preset === 'ultra' || preset === 'high' || preset === 'medium');
+      if (this.worldTime.cloudMesh) this.worldTime.cloudMesh.visible = showClouds;
+      if (this.worldTime.cloudMesh2) this.worldTime.cloudMesh2.visible = (preset === 'ultra');
+      if (this.worldTime.skyDomeMesh) this.worldTime.skyDomeMesh.visible = (preset !== 'low');
+      if (this.worldTime.sunGlowMesh) this.worldTime.sunGlowMesh.visible = (preset === 'ultra' || preset === 'high');
+      if (this.worldTime.moonGlowMesh) this.worldTime.moonGlowMesh.visible = (preset === 'ultra' || preset === 'high');
+      if (this.worldTime.sunBeamsGroup) this.worldTime.sunBeamsGroup.visible = (preset === 'ultra');
+      if (this.worldTime.moonBeamsGroup) this.worldTime.moonBeamsGroup.visible = (preset === 'ultra');
+    }
+
+    // Gerencia sombras recebidas pelos chunks de terreno
+    const enableTerrainShadows = (preset === 'ultra' || preset === 'high');
+    if (this.world && this.world.chunks) {
+      for (const chunk of this.world.chunks.values()) {
+        if (chunk.opaqueMesh) {
+          chunk.opaqueMesh.receiveShadow = enableTerrainShadows;
+        }
+      }
+    }
+
+    // Força atualização imediata da visibilidade dos chunks ao redor do jogador
+    if (this.world && this.player) {
+      this.world.updateChunkVisibility(this.player.position, this.renderDistance, true);
+    }
+
+    // Ajusta efeitos e densidade de partículas
+    if (this.particles) {
+      this.particles.applyPreset(preset);
+    }
+
+    if (save) {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('blockworld_graphics_preset', preset);
+        }
+      } catch (e) {}
+    }
+  }
+
+
   initThree() {
     // 1. Cena
     this.scene = new THREE.Scene();
 
-    // Céu azul e névoa atmosférica estendida para o mundo de 192x192 (144 chunks)
+    // Céu azul e névoa atmosférica
     const skyColor = new THREE.Color(0x7db4f5);
     this.scene.background = skyColor;
-    this.scene.fog = new THREE.Fog(skyColor, 50, 140);
+    this.scene.fog = new THREE.Fog(skyColor, 35, 78);
 
-    // 2. Câmera (alcance estendido para renderização de chunks maiores)
-    const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 220);
+    // 2. Câmera
+    const aspect = typeof window !== 'undefined' ? (window.innerWidth / window.innerHeight) : 1.33;
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 100);
     this.scene.add(this.camera);
 
     // 3. Renderizador WebGL
@@ -65,27 +296,46 @@ class Game {
       antialias: false,
       powerPreference: 'high-performance'
     });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    if (typeof window !== 'undefined') {
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      this.renderer.shadowMap.enabled = true;
 
-    const container = document.getElementById('canvas-container');
-    container.appendChild(this.renderer.domElement);
+      const container = document.getElementById('canvas-container');
+      if (container) {
+        container.appendChild(this.renderer.domElement);
+      }
+    }
   }
 
   initLights() {
     // Luz ambiente suave
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
-    this.scene.add(ambientLight);
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.40);
+    this.scene.add(this.ambientLight);
 
     // Luz hemisférica (céu e chão)
-    const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x543d2b, 0.45);
-    hemiLight.position.set(0, 60, 0);
-    this.scene.add(hemiLight);
+    this.hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x543d2b, 0.45);
+    this.hemiLight.position.set(0, 60, 0);
+    this.scene.add(this.hemiLight);
 
-    // Luz solar direcional com ângulo natural
-    const sunLight = new THREE.DirectionalLight(0xfff7e6, 0.9);
-    sunLight.position.set(45, 60, 30);
-    this.scene.add(sunLight);
+    // Luz solar direcional com ângulo natural e suporte a sombras
+    this.sunLight = new THREE.DirectionalLight(0xfff7e6, 0.9);
+    this.sunLight.position.set(45, 60, 30);
+    this.sunLight.castShadow = true;
+    if (this.sunLight.shadow) {
+      this.sunLight.shadow.mapSize.width = 1024;
+      this.sunLight.shadow.mapSize.height = 1024;
+      this.sunLight.shadow.camera.near = 1.0;
+      this.sunLight.shadow.camera.far = 280;
+      this.sunLight.shadow.camera.left = -60;
+      this.sunLight.shadow.camera.right = 60;
+      this.sunLight.shadow.camera.top = 60;
+      this.sunLight.shadow.camera.bottom = -60;
+      this.sunLight.shadow.bias = -0.0005;
+      this.sunLight.shadow.normalBias = 0.02;
+      this.sunLight.shadow.radius = 1.0;
+    }
+    this.scene.add(this.sunLight);
   }
 
   onWindowResize() {
@@ -213,23 +463,41 @@ class Game {
           this.entityManager.update(dt);
         }
 
+        // Atualiza multiplayer e outros jogadores na sessão LAN
+        if (this.multiplayer) {
+          this.multiplayer.update(dt);
+        }
+
+        // Atualiza partículas e efeitos visuais
+        if (this.particles) {
+          this.particles.update(dt);
+        }
+
         this.ui.update();
       } else if (
         this.state === 'INVENTORY' ||
         this.state === 'CREATIVE_INVENTORY' ||
         this.state === 'CRAFTING_TABLE' ||
-        this.state === 'FURNACE'
+        this.state === 'FURNACE' ||
+        this.state === 'PAUSED'
       ) {
-        // Continua rodando processos de fundo enquanto menus de inventário/fornalha estão abertos
+        // Continua rodando processos de fundo enquanto menus estão abertos
         if (this.worldTime) this.worldTime.update(dt);
         if (this.furnace) this.furnace.update(dt);
         if (this.drops) this.drops.update(dt);
         if (this.entityManager) this.entityManager.update(dt);
+        if (this.multiplayer) this.multiplayer.update(dt);
         this.ui.update();
       }
     }
 
+    // Atualiza animação de shaders de água se no preset Ultra
+    if (this.graphicsPreset === 'ultra' && typeof updateWaterShimmer === 'function') {
+      updateWaterShimmer(performance.now() * 0.001);
+    }
+
     this.renderer.render(this.scene, this.camera);
+
   }
 }
 

@@ -25,6 +25,8 @@ const ITEM_COOKED_PORKCHOP = 116;
 const ITEM_WOODEN_SWORD = 113;
 const ITEM_STONE_SWORD = 114;
 const ITEM_IRON_SWORD = 115;
+const ITEM_WOODEN_DOOR = 117;
+
 
 // Geradores procedurais 16x16 para os ícones dos itens
 const itemIcons = {};
@@ -616,8 +618,44 @@ const ITEM_TYPES = {
     speed: 1.0,
     maxDurability: 250,
     maxStack: 1
+  },
+  [ITEM_WOODEN_DOOR]: {
+    id: ITEM_WOODEN_DOOR,
+    name: 'Porta de Madeira',
+    isBlock: true,
+    isDoorItem: true,
+    maxStack: 64,
+    description: 'Porta funcional de 2 blocos de altura. Clique com botão direito para abrir ou fechar.'
   }
 };
+
+// Ícone procedural da Porta de Madeira
+itemIcons[ITEM_WOODEN_DOOR] = drawTile((ctx) => {
+  // Fundo transparente com retângulo de porta
+  ctx.fillStyle = '#8f613a';
+  ctx.fillRect(3, 1, 10, 14);
+  // Moldura externa da porta
+  ctx.fillStyle = '#57371d';
+  ctx.strokeRect(2.5, 0.5, 11, 15);
+  // Janelinhas superiores vazadas
+  ctx.fillStyle = '#2a1a0c';
+  ctx.fillRect(5, 3, 2, 4);
+  ctx.fillRect(9, 3, 2, 4);
+  ctx.fillStyle = '#78a2be';
+  ctx.fillRect(5, 4, 1, 3);
+  ctx.fillRect(9, 4, 1, 3);
+  // Painel inferior rebaixado
+  ctx.fillStyle = '#57371d';
+  ctx.fillRect(4, 9, 8, 5);
+  ctx.fillStyle = '#835732';
+  ctx.fillRect(5, 10, 6, 3);
+  // Maçaneta dourada/ferro
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(10, 8, 2, 2);
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(11, 9, 1, 1);
+});
+
 
 // Cache de DataURLs para ícones dos itens
 const ITEM_ICON_CACHE = {};
@@ -675,8 +713,10 @@ window.ITEM_COOKED_PORKCHOP = ITEM_COOKED_PORKCHOP;
 window.ITEM_WOODEN_SWORD = ITEM_WOODEN_SWORD;
 window.ITEM_STONE_SWORD = ITEM_STONE_SWORD;
 window.ITEM_IRON_SWORD = ITEM_IRON_SWORD;
+window.ITEM_WOODEN_DOOR = ITEM_WOODEN_DOOR;
 window.ITEM_TYPES = ITEM_TYPES;
 const ITEM_DEFINITIONS = ITEM_TYPES;
+
 window.ITEM_DEFINITIONS = ITEM_DEFINITIONS;
 window.getItemIconDataUrl = getItemIconDataUrl;
 window.isItem = isItem;

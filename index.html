@@ -63,11 +63,21 @@
       </div>
 
       <div class="menu-button-group">
-        <button id="btn-main-play" class="btn-primary">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        <button id="btn-main-create-world" class="btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          JOGAR
+          CRIAR MUNDO
+        </button>
+
+        <button id="btn-main-join-lan" class="btn-primary" style="background: linear-gradient(135deg, #059669, #10b981);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          ENTRAR EM MUNDO LAN
         </button>
 
         <button id="btn-main-worlds" class="btn-secondary">
@@ -77,17 +87,18 @@
             <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-          MUNDOS
+          MEUS MUNDOS
         </button>
 
-        <button id="btn-main-settings" class="btn-secondary">
+        <button id="btn-main-options" class="btn-secondary">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
-          CONFIGURAÇÕES
+          OPÇÕES
         </button>
       </div>
+
 
       <div class="controls-container">
         <div class="controls-header">Guia Rápido de Controles</div>
@@ -200,10 +211,14 @@
         <button id="btn-pause-resume" class="btn-primary">
           CONTINUAR
         </button>
+        <button id="btn-pause-options" class="btn-secondary">
+          OPÇÕES
+        </button>
         <button id="btn-pause-menu" class="btn-secondary">
           SALVAR E VOLTAR AO MENU
         </button>
       </div>
+
 
       <div class="controls-container">
         <div class="controls-header">Dicas de Sobrevivência</div>
@@ -399,33 +414,163 @@
     </div>
   </div>
 
-  <!-- 10. TELA DE CONFIGURAÇÕES -->
-  <div id="screen-settings" class="screen-overlay hidden">
-    <div class="overlay-modal modal-settings">
+  <!-- 10. TELA DE OPÇÕES (CONTROLES E GRÁFICOS) -->
+  <div id="screen-options" class="screen-overlay hidden">
+    <div class="overlay-modal modal-options">
       <div class="title-container">
-        <h2 class="overlay-title">CONFIGURAÇÕES</h2>
+        <h2 class="overlay-title">OPÇÕES DO JOGO</h2>
+        <p class="overlay-subtitle">Ajuste os controles ou o perfil gráfico</p>
       </div>
 
-      <div class="form-group">
-        <label>Distância do Mundo: 192 x 192 Blocos (144 Chunks)</label>
-        <p class="form-hint">Renderização ultra-otimizada com culling de chunks por distância e BufferGeometry.</p>
+      <div class="menu-button-group">
+        <button id="btn-opt-controls" class="btn-primary">
+          ⌨️ CONTROLES
+        </button>
+        <button id="btn-opt-graphics" class="btn-primary">
+          🖥️ GRÁFICOS
+        </button>
+        <button id="btn-opt-back" class="btn-secondary">
+          VOLTAR
+        </button>
       </div>
-
-      <div class="form-group">
-        <label>Ciclo de Dia e Noite: Ativo (30 Minutos)</label>
-        <p class="form-hint">15 minutos de dia e 15 minutos de noite com transição dinâmica de iluminação e céu.</p>
-      </div>
-
-      <div class="form-group">
-        <label>Áudio Procedural: Ativo (Web Audio API)</label>
-        <p class="form-hint">Efeitos sonoros de mineração, passos, golpes e coleta gerados em tempo real.</p>
-      </div>
-
-      <button id="btn-settings-close" class="btn-primary" style="margin-top: 15px;">
-        VOLTAR
-      </button>
     </div>
   </div>
+
+  <!-- 11. TELA DE CONTROLES PERSONALIZÁVEIS -->
+  <div id="screen-controls" class="screen-overlay hidden">
+    <div class="overlay-modal modal-controls">
+      <div class="title-container">
+        <h2 class="overlay-title">CONTROLES PERSONALIZÁVEIS</h2>
+        <p class="overlay-subtitle">Clique em qualquer ação e pressione a nova tecla ou botão do mouse desejado</p>
+      </div>
+
+      <!-- Aviso de conflito de teclas -->
+      <div id="controls-conflict-warning" class="controls-warning hidden">
+        ⚠️ Atenção: Há ações compartilhando a mesma tecla!
+      </div>
+
+      <!-- Lista de Mapeamentos -->
+      <div id="controls-list-container" class="controls-list">
+        <!-- Inserido dinamicamente pelo UI.js -->
+      </div>
+
+      <div class="controls-footer-actions">
+        <button id="btn-controls-reset" class="btn-secondary">
+          RESTAURAR PADRÕES
+        </button>
+        <button id="btn-controls-back" class="btn-primary">
+          CONCLUÍDO
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12. TELA DE OPÇÕES GRÁFICAS (BAIXO, MÉDIO, ALTO) -->
+  <div id="screen-graphics" class="screen-overlay hidden">
+    <div class="overlay-modal modal-graphics">
+      <div class="title-container">
+        <h2 class="overlay-title">PERFIS GRÁFICOS</h2>
+        <p class="overlay-subtitle">As alterações são aplicadas imediatamente sem reiniciar o jogo</p>
+      </div>
+
+      <div class="graphics-presets-grid">
+        <!-- Preset Baixo -->
+        <div id="preset-card-low" class="preset-card" data-preset="low">
+          <div class="preset-badge">BAIXO</div>
+          <div class="preset-desc">
+            • 3 Chunks de distância<br>
+            • Névoa fechada otimizada<br>
+            • Prioridade máxima para FPS<br>
+            • Ideal para computadores fracos
+          </div>
+          <button type="button" class="btn-select-preset">SELECIONAR</button>
+        </div>
+
+        <!-- Preset Médio -->
+        <div id="preset-card-medium" class="preset-card" data-preset="medium">
+          <div class="preset-badge">MÉDIO</div>
+          <div class="preset-desc">
+            • 5 Chunks de distância<br>
+            • Névoa e iluminação equilibradas<br>
+            • Ótimo equilíbrio visual/performance<br>
+            • Recomendado para a maioria
+          </div>
+          <button type="button" class="btn-select-preset">SELECIONAR</button>
+        </div>
+
+        <!-- Preset Alto -->
+        <div id="preset-card-high" class="preset-card" data-preset="high">
+          <div class="preset-badge">ALTO</div>
+          <div class="preset-desc">
+            • 7 Chunks de distância<br>
+            • Névoa estendida e alta nitidez<br>
+            • Detalhes e partículas completas<br>
+            • Para computadores potentes
+          </div>
+          <button type="button" class="btn-select-preset">SELECIONAR</button>
+        </div>
+
+        <!-- Preset Ultra — Shaders -->
+        <div id="preset-card-ultra" class="preset-card preset-ultra" data-preset="ultra">
+          <div class="preset-badge badge-ultra">ULTRA — SHADERS</div>
+          <div class="preset-desc">
+            • 8 Chunks de distância (máxima)<br>
+            • Sombras dinâmicas suaves (2048px)<br>
+            • Água cristalina ondulante animada<br>
+            • Iluminação cinematográfica ACES Filmic<br>
+            • Pôr do sol e partículas atmosféricas
+          </div>
+          <button type="button" class="btn-select-preset">SELECIONAR</button>
+        </div>
+      </div>
+
+      <div class="graphics-footer-actions">
+        <button id="btn-graphics-back" class="btn-primary">
+          VOLTAR
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 13. TELA DE ENTRAR EM MUNDO LAN -->
+  <div id="screen-join-lan" class="screen-overlay hidden">
+    <div class="overlay-modal modal-lan">
+      <div class="title-container">
+        <h2 class="overlay-title">ENTRAR EM MUNDO LAN</h2>
+        <p class="overlay-subtitle">Jogue com amigos conectados na mesma rede local (Wi-Fi ou Cabo)</p>
+      </div>
+
+      <div class="form-group">
+        <label for="input-lan-address">Endereço IP e Porta do Host</label>
+        <input type="text" id="input-lan-address" class="form-input" placeholder="Ex: 192.168.1.15:8080 ou localhost:8080" value="localhost:8080">
+      </div>
+
+      <div class="form-group">
+        <label for="input-lan-name">Seu Nome no Jogo</label>
+        <input type="text" id="input-lan-name" class="form-input" placeholder="Ex: Jogador 2" value="Jogador 2">
+      </div>
+
+      <div class="lan-instructions-box">
+        <div class="lan-instructions-title">💡 Como se conectar na Rede Local:</div>
+        <p class="lan-instructions-text">
+          1. <strong>Como saber o IP:</strong> No computador do anfitrião, abra o Prompt de Comando (CMD) e digite <code>ipconfig</code> (procure por "Endereço IPv4").<br>
+          2. No Linux ou Mac, abra o terminal e digite <code>ip a</code> ou <code>ifconfig</code>.<br>
+          3. Digite o IP do anfitrião com a porta <code>:8080</code> no campo acima.<br>
+          4. <strong>Firewall:</strong> Garanta que a conexão do Node.js está permitida na rede privada.
+        </p>
+      </div>
+
+      <div class="create-actions">
+        <button id="btn-confirm-join-lan" class="btn-primary">
+          CONECTAR
+        </button>
+        <button id="btn-cancel-join-lan" class="btn-secondary">
+          VOLTAR
+        </button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Notificação Toast -->
   <div id="toast-notification" class="toast"></div>
@@ -459,10 +604,13 @@
   <script src="js/physics.js"></script>
   <script src="js/inventory.js"></script>
   <script src="js/saveSystem.js"></script>
+  <script src="js/multiplayer.js"></script>
   <script src="js/worldManager.js"></script>
   <script src="js/player.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/input.js"></script>
+  <script src="js/particles.js"></script>
   <script src="js/main.js"></script>
 </body>
+
 </html>

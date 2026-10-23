@@ -123,6 +123,13 @@ class Pig extends Entity {
       this.mesh.add(legGroup);
       this.legs.push(legGroup);
     }
+
+    this.mesh.traverse(c => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+      }
+    });
   }
 
   // Dropar Carne de Porco ao morrer (100% de pelo menos 1, com chance de 2)
@@ -149,56 +156,61 @@ class Pig extends Entity {
     super.update(dt);
     if (this.isDead) return;
 
-    // Atualização da IA Simples de Perambulação
-    this.stateTimer -= dt;
-    if (this.stateTimer <= 0) {
-      if (this.isWalking) {
-        // Para para descansar
-        this.isWalking = false;
-        this.stateTimer = 1.5 + Math.random() * 3.0;
-        this.velocity.x = 0;
-        this.velocity.z = 0;
-      } else {
-        // Começa a andar em direção aleatória
-        this.isWalking = true;
-        this.stateTimer = 2.0 + Math.random() * 4.0;
-        this.yaw += (Math.random() - 0.5) * Math.PI;
-      }
-    }
-
-    if (this.isWalking) {
-      this.walkAnimTime += dt * 8.5;
-      const fwdX = Math.sin(this.yaw);
-      const fwdZ = Math.cos(this.yaw);
-
-      this.velocity.x = fwdX * this.moveSpeed;
-      this.velocity.z = fwdZ * this.moveSpeed;
-
-      // Pulinho automático para subir 1 bloco de altura se estiver preso
-      if (this.onGround) {
-        const nextX = this.position.x + fwdX * 0.4;
-        const nextZ = this.position.z + fwdZ * 0.4;
-        const bx = Math.floor(nextX);
-        const by = Math.floor(this.position.y);
-        const bz = Math.floor(nextZ);
-        if (this.game.world && this.game.world.isSolid(bx, by, bz) && !this.game.world.isSolid(bx, by + 1, bz)) {
-          this.velocity.y = 5.2;
+    // Se estiver sob efeito de knockback recente, o impulso prevalece sobre a IA
+    if (this.knockbackTimer > 0) {
+      this.knockbackTimer -= dt;
+    } else {
+      // Atualização da IA Simples de Perambulação
+      this.stateTimer -= dt;
+      if (this.stateTimer <= 0) {
+        if (this.isWalking) {
+          // Para para descansar
+          this.isWalking = false;
+          this.stateTimer = 1.5 + Math.random() * 3.0;
+          this.velocity.x = 0;
+          this.velocity.z = 0;
+        } else {
+          // Começa a andar em direção aleatória
+          this.isWalking = true;
+          this.stateTimer = 2.0 + Math.random() * 4.0;
+          this.yaw += (Math.random() - 0.5) * Math.PI;
         }
       }
 
-      // Animação das 4 pernas alternadas
-      if (this.legs.length === 4) {
-        const legAngle = Math.sin(this.walkAnimTime) * 0.55;
-        this.legs[0].rotation.x = legAngle;
-        this.legs[1].rotation.x = -legAngle;
-        this.legs[2].rotation.x = -legAngle;
-        this.legs[3].rotation.x = legAngle;
+      if (this.isWalking) {
+        this.walkAnimTime += dt * 8.5;
+        const fwdX = Math.sin(this.yaw);
+        const fwdZ = Math.cos(this.yaw);
+
+        this.velocity.x = fwdX * this.moveSpeed;
+        this.velocity.z = fwdZ * this.moveSpeed;
+
+        // Pulinho automático para subir 1 bloco de altura se estiver preso
+        if (this.onGround) {
+          const nextX = this.position.x + fwdX * 0.4;
+          const nextZ = this.position.z + fwdZ * 0.4;
+          const bx = Math.floor(nextX);
+          const by = Math.floor(this.position.y);
+          const bz = Math.floor(nextZ);
+          if (this.game.world && this.game.world.isSolid(bx, by, bz) && !this.game.world.isSolid(bx, by + 1, bz)) {
+            this.velocity.y = 5.2;
+          }
+        }
+
+        // Animação das 4 pernas alternadas
+        if (this.legs.length === 4) {
+          const legAngle = Math.sin(this.walkAnimTime) * 0.55;
+          this.legs[0].rotation.x = legAngle;
+          this.legs[1].rotation.x = -legAngle;
+          this.legs[2].rotation.x = -legAngle;
+          this.legs[3].rotation.x = legAngle;
+        }
+      } else {
+        // Reseta pernas suavemente para posição de repouso
+        this.legs.forEach(leg => {
+          leg.rotation.x *= Math.pow(0.1, dt);
+        });
       }
-    } else {
-      // Reseta pernas suavemente para posição de repouso
-      this.legs.forEach(leg => {
-        leg.rotation.x *= Math.pow(0.1, dt);
-      });
     }
 
     // Física e colisão

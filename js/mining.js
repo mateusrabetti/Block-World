@@ -145,6 +145,14 @@ class MiningSystem {
     // Remove o bloco do mundo
     this.game.world.setBlock(x, y, z, BLOCK_AIR);
 
+    // Sincroniza quebra no multiplayer LAN
+    if (this.game.multiplayer) {
+      this.game.multiplayer.sendBlockChange(x, y, z, BLOCK_AIR);
+    }
+
+    // Se for porta, remove a outra metade correspondente
+    this.handleDoorBreak(x, y, z, blockType);
+
     // Toca som de quebra
     if (this.game.player) {
       this.game.player.playSound('break');
@@ -153,6 +161,11 @@ class MiningSystem {
     // Calcula e adiciona os drops ao mundo
     const dropPos = { x: x + 0.5, y: y + 0.5, z: z + 0.5 };
     this.handleDrops(blockType, def, dropPos);
+
+    // Efeito de partículas visuais de quebra
+    if (this.game.particles) {
+      this.game.particles.spawnBlockBreakParticles(x, y, z, blockType);
+    }
 
     // Consome durabilidade da ferramenta utilizada
     this.consumeToolDurability();
@@ -171,6 +184,27 @@ class MiningSystem {
     if (this.game.input && this.game.input.isMiningMouseDown && this.game.state === 'PLAYING' && this.game.gameMode !== 'creative') {
       if (this.game.player && this.game.player.targetBlock) {
         this.startMining(this.game.player.targetBlock);
+      }
+    }
+  }
+
+  // Remove a outra metade da porta quando uma das metades é quebrada
+  handleDoorBreak(x, y, z, blockType) {
+    if (blockType === BLOCK_DOOR_LOWER || blockType === BLOCK_DOOR_LOWER_OPEN) {
+      const above = this.game.world.getBlock(x, y + 1, z);
+      if (above === BLOCK_DOOR_UPPER || above === BLOCK_DOOR_UPPER_OPEN) {
+        this.game.world.setBlock(x, y + 1, z, BLOCK_AIR);
+        if (this.game.multiplayer) {
+          this.game.multiplayer.sendBlockChange(x, y + 1, z, BLOCK_AIR);
+        }
+      }
+    } else if (blockType === BLOCK_DOOR_UPPER || blockType === BLOCK_DOOR_UPPER_OPEN) {
+      const below = this.game.world.getBlock(x, y - 1, z);
+      if (below === BLOCK_DOOR_LOWER || below === BLOCK_DOOR_LOWER_OPEN) {
+        this.game.world.setBlock(x, y - 1, z, BLOCK_AIR);
+        if (this.game.multiplayer) {
+          this.game.multiplayer.sendBlockChange(x, y - 1, z, BLOCK_AIR);
+        }
       }
     }
   }

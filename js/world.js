@@ -1,5 +1,5 @@
 // =============================================================================
-// js/world.js - Gerenciamento do Mundo Expandido (192x48x192), 144 Chunks, Cavernas 3D
+// js/world.js - Gerenciamento do Mundo Expandido (384x48x384), 576 Chunks, Cavernas 3D
 // =============================================================================
 
 class World {
@@ -7,14 +7,14 @@ class World {
     this.scene = scene;
     this.seed = seed;
 
-    // Dimensões do mundo: 192 x 48 x 192 blocos (Profundidade e área aumentadas)
-    this.sizeX = 192;
+    // Dimensões do mundo: 384 x 48 x 384 blocos (576 Chunks, alcance e área visível dobrados)
+    this.sizeX = 384;
     this.sizeY = 48;
-    this.sizeZ = 192;
+    this.sizeZ = 384;
 
-    // Grid de Chunks: 12 x 12 = 144 chunks (Mais que o dobro dos 64 anteriores)
-    this.numChunksX = this.sizeX / CHUNK_SIZE_X; // 12
-    this.numChunksZ = this.sizeZ / CHUNK_SIZE_Z; // 12
+    // Grid de Chunks: 24 x 24 = 576 chunks (4x mais área de chunks)
+    this.numChunksX = this.sizeX / CHUNK_SIZE_X; // 24
+    this.numChunksZ = this.sizeZ / CHUNK_SIZE_Z; // 24
 
     this.chunks = new Array(this.numChunksX * this.numChunksZ);
 
@@ -27,9 +27,14 @@ class World {
     // Gerador de terreno procedural com seed
     this.terrain = new TerrainGenerator(this.seed);
 
+    // Fila para construção progressiva de malhas (prioridade por proximidade ao jogador)
+    this.meshQueue = [];
+    this.queuedChunksSet = new Set();
+
     // Último chunk onde o jogador estava para atualização de culling
     this.lastPlayerChunkX = -999;
     this.lastPlayerChunkZ = -999;
+    this.lastRenderDistance = -1;
 
     // Inicializa a estrutura de chunks e adiciona à cena
     this.initChunks();
@@ -40,11 +45,11 @@ class World {
     // Aplica as modificações salvas do jogador
     this.applyModifiedBlocks();
 
-    // Constrói as malhas visuais de todos os chunks ordenados por proximidade ao centro
-    this.buildAllChunkMeshes();
+    // Constrói malhas iniciais priorizando o entorno do spawn (raio imediato de 5 chunks)
+    this.buildInitialMeshes({ x: this.sizeX / 2, y: 24, z: this.sizeZ / 2 }, 5);
 
     // Atualiza visibilidade inicial
-    this.updateChunkVisibility({ x: this.sizeX / 2, y: 24, z: this.sizeZ / 2 }, 6);
+    this.updateChunkVisibility({ x: this.sizeX / 2, y: 24, z: this.sizeZ / 2 }, 10, true);
   }
 
   getChunkIndex(cx, cz) {
@@ -145,24 +150,37 @@ class World {
     return this.terrain.getBiome(x, z);
   }
 
-  /**
-   * Otimização: Culling de chunks por distância do jogador.
-   * Mantém alta taxa de quadros (FPS) renderizando somente chunks visíveis.
-   */
-  updateChunkVisibility(playerPos, renderDistanceInChunks = 5, force = false) {
-    if (!playerPos) return;
+  // Enfileira chunk para geração progressiva de malha
+  queueChunkMesh(chunk, distSq = 0) {
+    if (!chunk || !chunk.isDirty) return;
+    const idx = this.getChunkIndex(chunk.cx, chunk.cz);
+    if (this.queuedChunksSet.has(idx)) return;
+    this.queuedChunksSet.add(idx);
+    this.meshQueue.push({ chunk, distSq });
+  }
 
-    const pcx = Math.floor(playerPos.x / CHUNK_SIZE_X);
-    const pcz = Math.floor(playerPos.z / CHUNK_SIZE_Z);
+  // Processa fatias da fila por quadro para evitar travamentos ou congelamento
+  processMeshQueue(maxChunks = 4) {
+    if (this.meshQueue.length === 0) return;
 
-    if (!force && pcx === this.lastPlayerChunkX && pcz === this.lastPlayerChunkZ && renderDistanceInChunks === this.lastRenderDistance) {
-      return;
+    let processed = 0;
+    while (this.meshQueue.length > 0 && processed < maxChunks) {
+      const item = this.meshQueue.shift();
+      const idx = this.getChunkIndex(item.chunk.cx, item.chunk.cz);
+      this.queuedChunksSet.delete(idx);
+
+      if (item.chunk && item.chunk.isDirty) {
+        item.chunk.rebuildMesh();
+        processed++;
+      }
     }
-    this.lastPlayerChunkX = pcx;
-    this.lastPlayerChunkZ = pcz;
-    this.lastRenderDistance = renderDistanceInChunks;
+  }
 
-    const maxDistSq = renderDistanceInChunks * renderDistanceInChunks;
+  // Constrói malhas iniciais priorizando o entorno imediato do jogador
+  buildInitialMeshes(centerPos, immediateRadius = 5) {
+    const pcx = Math.floor(centerPos.x / CHUNK_SIZE_X);
+    const pcz = Math.floor(centerPos.z / CHUNK_SIZE_Z);
+    const immediateDistSq = immediateRadius * immediateRadius;
 
     for (let cx = 0; cx < this.numChunksX; cx++) {
       for (let cz = 0; cz < this.numChunksZ; cz++) {
@@ -173,13 +191,75 @@ class World {
         const dz = cz - pcz;
         const distSq = dx * dx + dz * dz;
 
-        // Ativa visibilidade apenas dentro do raio de renderização
-        const isVisible = distSq <= maxDistSq;
-        if (chunk.group.visible !== isVisible) {
-          chunk.group.visible = isVisible;
+        if (distSq <= immediateDistSq) {
+          chunk.rebuildMesh();
+        } else {
+          this.queueChunkMesh(chunk, distSq);
         }
       }
     }
+
+    // Ordena fila por proximidade (mais próximos primeiro)
+    this.meshQueue.sort((a, b) => a.distSq - b.distSq);
+  }
+
+  /**
+   * Otimização: Culling de chunks por distância do jogador e carregamento progressivo.
+   * Mantém alta taxa de quadros (FPS) renderizando somente chunks visíveis e reutilizando
+   * as malhas já calculadas sem recriar geometrias ou materiais desnecessariamente.
+   */
+  updateChunkVisibility(playerPos, renderDistanceInChunks = 10, force = false) {
+    if (!playerPos) return;
+
+    const pcx = Math.floor(playerPos.x / CHUNK_SIZE_X);
+    const pcz = Math.floor(playerPos.z / CHUNK_SIZE_Z);
+
+    const chunkChanged = (pcx !== this.lastPlayerChunkX || pcz !== this.lastPlayerChunkZ);
+    const distChanged = (renderDistanceInChunks !== this.lastRenderDistance);
+
+    if (chunkChanged || distChanged || force) {
+      this.lastPlayerChunkX = pcx;
+      this.lastPlayerChunkZ = pcz;
+      this.lastRenderDistance = renderDistanceInChunks;
+
+      const maxDistSq = renderDistanceInChunks * renderDistanceInChunks;
+
+      for (let cx = 0; cx < this.numChunksX; cx++) {
+        for (let cz = 0; cz < this.numChunksZ; cz++) {
+          const chunk = this.getChunk(cx, cz);
+          if (!chunk) continue;
+
+          const dx = cx - pcx;
+          const dz = cz - pcz;
+          const distSq = dx * dx + dz * dz;
+
+          // Ativa visibilidade apenas dentro do raio de renderização
+          const isVisible = distSq <= maxDistSq;
+          if (chunk.group.visible !== isVisible) {
+            chunk.group.visible = isVisible;
+          }
+
+          // Se visível e precisa de malha (isDirty), adiciona à fila com prioridade
+          if (isVisible && chunk.isDirty) {
+            this.queueChunkMesh(chunk, distSq);
+          }
+        }
+      }
+
+      // Reordena fila para priorizar os chunks mais próximos ao jogador
+      if (this.meshQueue.length > 1) {
+        for (let i = 0; i < this.meshQueue.length; i++) {
+          const c = this.meshQueue[i].chunk;
+          const dx = c.cx - pcx;
+          const dz = c.cz - pcz;
+          this.meshQueue[i].distSq = dx * dx + dz * dz;
+        }
+        this.meshQueue.sort((a, b) => a.distSq - b.distSq);
+      }
+    }
+
+    // Processa uma fatia da fila de malhas em cada chamada
+    this.processMeshQueue(4);
   }
 
   // Gera terreno procedural para todo o mundo com profundidade e cavernas
@@ -382,8 +462,12 @@ class World {
     });
 
     for (let i = 0; i < sortedChunks.length; i++) {
-      sortedChunks[i].rebuildMesh();
+      if (sortedChunks[i].isDirty) {
+        sortedChunks[i].rebuildMesh();
+      }
     }
+    this.meshQueue = [];
+    if (this.queuedChunksSet) this.queuedChunksSet.clear();
   }
 
   /**
@@ -459,6 +543,8 @@ class World {
 
   // Remove malhas da cena ao trocar de mundo
   dispose() {
+    this.meshQueue = [];
+    if (this.queuedChunksSet) this.queuedChunksSet.clear();
     for (let i = 0; i < this.chunks.length; i++) {
       const chunk = this.chunks[i];
       if (chunk) {

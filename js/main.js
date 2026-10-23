@@ -37,8 +37,8 @@ class Game {
     this.multiplayer = new MultiplayerManager(this);
     this.particles = (typeof ParticleManager !== 'undefined') ? new ParticleManager(this) : null;
 
-    // Configurações Gráficas (Baixo, Médio, Alto)
-    this.renderDistance = 4;
+    // Configurações Gráficas (Baixo, Médio, Alto, Ultra — Shaders)
+    this.renderDistance = 10;
     this.graphicsPreset = 'medium';
     this.graphicsQuality = 'medium';
     try {
@@ -69,14 +69,14 @@ class Game {
     this.graphicsQuality = preset;
 
     if (preset === 'low') {
-      // Baixo: 3 chunks de raio, névoa fechada otimizada, sem sombras, máximo FPS
-      this.renderDistance = 3;
+      // Baixo: 6 chunks de raio (96 blocos), névoa fechada otimizada, sem sombras, máximo FPS
+      this.renderDistance = 6;
       if (this.scene && this.scene.fog) {
-        this.scene.fog.near = 15;
-        this.scene.fog.far = 48;
+        this.scene.fog.near = 30;
+        this.scene.fog.far = 96;
       }
       if (this.camera) {
-        this.camera.far = 320;
+        this.camera.far = 340;
         this.camera.updateProjectionMatrix();
       }
       if (this.renderer) {
@@ -89,16 +89,16 @@ class Game {
         this.sunLight.castShadow = false;
       }
     } else if (preset === 'ultra') {
-      // Ultra — Shaders: 8 chunks (128 blocos de raio), sombras dinâmicas de 2048px com filtro PCFSoft,
+      // Ultra — Shaders: 16 chunks (256 blocos de raio dobrados), sombras dinâmicas de 2048px com filtro PCFSoft,
       // Tone mapping ACES Filmic com exposição cinematográfica, água translúcida ondulante animada,
       // névoa atmosférica e iluminação aprimorada inspirada no Complementary Shaders
-      this.renderDistance = 8;
+      this.renderDistance = 16;
       if (this.scene && this.scene.fog) {
-        this.scene.fog.near = 85;
-        this.scene.fog.far = 220;
+        this.scene.fog.near = 170;
+        this.scene.fog.far = 280;
       }
       if (this.camera) {
-        this.camera.far = 420;
+        this.camera.far = 520;
         this.camera.updateProjectionMatrix();
       }
       if (this.renderer && typeof window !== 'undefined') {
@@ -128,14 +128,14 @@ class Game {
         }
       }
     } else if (preset === 'high') {
-      // Alto: 7 chunks de raio (112 blocos), névoa distante ampla, sombras suaves, nitidez máxima
-      this.renderDistance = 7;
+      // Alto: 14 chunks de raio (224 blocos dobrados), névoa distante ampla, sombras suaves, nitidez máxima
+      this.renderDistance = 14;
       if (this.scene && this.scene.fog) {
-        this.scene.fog.near = 70;
-        this.scene.fog.far = 160;
+        this.scene.fog.near = 140;
+        this.scene.fog.far = 240;
       }
       if (this.camera) {
-        this.camera.far = 380;
+        this.camera.far = 460;
         this.camera.updateProjectionMatrix();
       }
       if (this.renderer && typeof window !== 'undefined') {
@@ -165,14 +165,14 @@ class Game {
         }
       }
     } else {
-      // Médio: 5 chunks de raio (80 blocos), equilíbrio ótimo visual e de performance
-      this.renderDistance = 5;
+      // Médio: 10 chunks de raio (160 blocos dobrados), equilíbrio ótimo visual e de performance
+      this.renderDistance = 10;
       if (this.scene && this.scene.fog) {
-        this.scene.fog.near = 35;
-        this.scene.fog.far = 85;
+        this.scene.fog.near = 70;
+        this.scene.fog.far = 170;
       }
       if (this.camera) {
-        this.camera.far = 350;
+        this.camera.far = 380;
         this.camera.updateProjectionMatrix();
       }
       if (this.renderer && typeof window !== 'undefined') {
@@ -281,14 +281,14 @@ class Game {
     // 1. Cena
     this.scene = new THREE.Scene();
 
-    // Céu azul e névoa atmosférica
+    // Céu azul e névoa atmosférica estendida
     const skyColor = new THREE.Color(0x7db4f5);
     this.scene.background = skyColor;
-    this.scene.fog = new THREE.Fog(skyColor, 35, 78);
+    this.scene.fog = new THREE.Fog(skyColor, 70, 170);
 
-    // 2. Câmera
+    // 2. Câmera com alcance ampliado para suportar visão dobrada
     const aspect = typeof window !== 'undefined' ? (window.innerWidth / window.innerHeight) : 1.33;
-    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 400);
     this.scene.add(this.camera);
 
     // 3. Renderizador WebGL
@@ -424,6 +424,11 @@ class Game {
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
     if (this.world) {
+      // Processamento suave de chunks em segundo plano sem travar taxa de quadros
+      if (this.world.processMeshQueue) {
+        this.world.processMeshQueue(3);
+      }
+
       if (this.state === 'PLAYING') {
         // Atualiza ciclo dia/noite e iluminação
         if (this.worldTime) {

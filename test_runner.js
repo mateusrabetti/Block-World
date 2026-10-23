@@ -128,10 +128,10 @@ console.log('--- TEST 2: RECIPES ---');
 const furnaceRecipe = CRAFTING_RECIPES.find(r => r.result.id === BLOCK_FURNACE);
 console.log('Furnace recipe found:', !!furnaceRecipe);
 
-console.log('--- TEST 3: WORLD GENERATION (144 chunks) ---');
+console.log('--- TEST 3: WORLD GENERATION (576 chunks) ---');
 const scene = new THREE.Scene();
 const world = new World(scene, 12345, {});
-console.log('World chunks created:', world.chunks.size);
+console.log('World chunks created:', world.chunks.length);
 console.log('World dimensions:', world.sizeX, world.sizeY, world.sizeZ);
 
 console.log('--- TEST 4: 3D CAVES & ORES ---');
@@ -579,38 +579,38 @@ mockGame.applyGraphicsPreset = Game.prototype.applyGraphicsPreset.bind(mockGame)
 
 // 1. Testa preset Baixo
 mockGame.applyGraphicsPreset('low');
-console.log('Low preset applied (chunks = 3, fogFar = 48, shadow disabled):',
-  mockGame.renderDistance === 3 &&
-  mockGame.scene.fog.far === 48 &&
+console.log('Low preset applied (chunks = 6, fogFar = 96, shadow disabled):',
+  mockGame.renderDistance === 6 &&
+  mockGame.scene.fog.far === 96 &&
   mockGame.renderer.shadowMap.enabled === false &&
   mockGame.sunLight.castShadow === false
 );
 
 // 2. Testa preset Médio
 mockGame.applyGraphicsPreset('medium');
-console.log('Medium preset applied (chunks = 5, fogFar = 85, basic shadow):',
-  mockGame.renderDistance === 5 &&
-  mockGame.scene.fog.far === 85 &&
+console.log('Medium preset applied (chunks = 10, fogFar = 170, basic shadow):',
+  mockGame.renderDistance === 10 &&
+  mockGame.scene.fog.far === 170 &&
   mockGame.renderer.shadowMap.enabled === true &&
   mockGame.sunLight.shadow.mapSize.width === 512
 );
 
 // 3. Testa preset Alto
 mockGame.applyGraphicsPreset('high');
-console.log('High preset applied (chunks = 7, fogFar = 160, PCFSoft 1024):',
-  mockGame.renderDistance === 7 &&
-  mockGame.scene.fog.far === 160 &&
+console.log('High preset applied (chunks = 14, fogFar = 240, PCFSoft 1024):',
+  mockGame.renderDistance === 14 &&
+  mockGame.scene.fog.far === 240 &&
   mockGame.renderer.shadowMap.type === THREE.PCFSoftShadowMap &&
   mockGame.sunLight.shadow.mapSize.width === 1024
 );
 
 // 4. Testa preset Ultra — Shaders
 mockGame.applyGraphicsPreset('ultra');
-console.log('Ultra preset applied (chunks = 8, fogFar = 220, PCFSoft 2048):',
-  mockGame.renderDistance === 8 &&
-  mockGame.scene.fog.far === 220 &&
+console.log('Ultra preset applied (chunks = 16, fogFar = 280, PCFSoft 2048):',
+  mockGame.renderDistance === 16 &&
+  mockGame.scene.fog.far === 280 &&
   mockGame.sunLight.shadow.mapSize.width === 2048 &&
-  mockGame.camera.far === 420
+  mockGame.camera.far === 520
 );
 console.log('Ultra ACES Filmic Tone Mapping active:',
   mockGame.renderer.toneMapping === THREE.ACESFilmicToneMapping &&
@@ -676,13 +676,13 @@ console.log('Knockback timer elapsed:', kbPig.knockbackTimer <= 0);
 
 console.log('--- TEST 24: CHUNK VISIBILITY FORCE REFRESH & CHUNKS UPDATE ---');
 // Standing at center of world
-const centerPos = { x: 96, y: 25, z: 96 };
-world.updateChunkVisibility(centerPos, 2, true); // Low: 2 chunks
+const centerPos = { x: world.sizeX / 2, y: 25, z: world.sizeZ / 2 };
+world.updateChunkVisibility(centerPos, 4, true); // Low: 4 chunks
 let visibleChunksLow = 0;
 world.chunks.forEach(c => { if (c.group.visible) visibleChunksLow++; });
 console.log('Low preset visible chunks count:', visibleChunksLow);
 
-world.updateChunkVisibility(centerPos, 7, true); // High: 7 chunks
+world.updateChunkVisibility(centerPos, 14, true); // High: 14 chunks
 let visibleChunksHigh = 0;
 world.chunks.forEach(c => { if (c.group.visible) visibleChunksHigh++; });
 console.log('High preset visible chunks count:', visibleChunksHigh);

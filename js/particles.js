@@ -62,42 +62,9 @@ class ParticleManager {
     }
   }
 
-  // Inicializa partículas ambientais suspensas no ar (Pólen / Vaga-lumes / Poeira solar)
+  // Desativa partículas cúbicas espalhadas pelo céu
   initAmbientParticles(isUltra = false) {
-    if (this.ambientGroup && this.scene) {
-      this.removeAmbientParticles();
-    }
-    if (!this.scene) return;
-
-    this.ambientGroup = new THREE.Group();
-    this.ambientParticles = [];
-
-    const count = isUltra ? 55 : 35;
-    const geom = new THREE.BoxGeometry(0.06, 0.06, 0.06);
-    const initialColor = isUltra ? 0xfff0aa : 0xfff3c4;
-    this.ambientMat = new THREE.MeshBasicMaterial({
-      color: initialColor,
-      transparent: true,
-      opacity: isUltra ? 0.80 : 0.65
-    });
-
-    for (let i = 0; i < count; i++) {
-      const mesh = new THREE.Mesh(geom, this.ambientMat);
-      const data = {
-        mesh: mesh,
-        offsetX: (Math.random() - 0.5) * (isUltra ? 32 : 24),
-        offsetY: Math.random() * (isUltra ? 10 : 8) + 0.5,
-        offsetZ: (Math.random() - 0.5) * (isUltra ? 32 : 24),
-        speedX: (Math.random() - 0.5) * 0.4,
-        speedY: (Math.random() - 0.5) * 0.2,
-        speedZ: (Math.random() - 0.5) * 0.4,
-        phase: Math.random() * Math.PI * 2
-      };
-      this.ambientGroup.add(mesh);
-      this.ambientParticles.push(data);
-    }
-
-    this.scene.add(this.ambientGroup);
+    this.removeAmbientParticles();
   }
 
   removeAmbientParticles() {

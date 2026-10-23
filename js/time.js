@@ -15,39 +15,40 @@ function generateCloudTexture() {
   const imgData = ctx.createImageData(512, 512);
   const data = imgData.data;
 
-  // Ruído fractal contínuo multi-oitavas para morfologia cumulus realista (estilo Complementary Shaders - Imagem 1)
+  // Ruído fractal perfeitamente periódico (toroidal) em 512x512 para nuvens cumulus volumétricas sem nenhuma costura
   for (let x = 0; x < 512; x++) {
     for (let y = 0; y < 512; y++) {
       const idx = (x + y * 512) * 4;
       const nx = (x / 512) * Math.PI * 2;
       const ny = (y / 512) * Math.PI * 2;
 
-      // Aglomerados esféricos cumulus com cristas arredondadas e base suave
-      let n = Math.sin(nx * 2) * Math.cos(ny * 2) * 0.40;
-      n += (Math.sin(nx * 4 + 1.2) * Math.cos(ny * 4 + 0.8) + Math.cos(nx * 2.5 - ny * 3.2)) * 0.28;
-      n += (Math.sin(nx * 8 + 2.5) * Math.cos(ny * 7.5 + 1.8) + Math.sin(nx * 6 - ny * 5)) * 0.16;
-      n += (Math.sin(nx * 16 + 0.7) * Math.cos(ny * 16 + 2.4)) * 0.09;
-      n += (Math.sin(nx * 32) * Math.cos(ny * 32)) * 0.04;
-      n += (Math.sin(nx * 64 + 1.1) * Math.cos(ny * 64 + 0.5)) * 0.02;
+      // Oitavas com harmônicos inteiros estritos (garantia matemática de continuidade e periodicidade em x e y)
+      let n = Math.sin(nx * 1) * Math.cos(ny * 1) * 0.38;
+      n += (Math.sin(nx * 2 + 0.8) * Math.cos(ny * 2 + 1.2) + Math.cos(nx * 3 - ny * 2)) * 0.26;
+      n += (Math.sin(nx * 4 + 1.6) * Math.cos(ny * 4 + 0.5) + Math.sin(nx * 6 - ny * 4)) * 0.16;
+      n += (Math.sin(nx * 8 + 2.1) * Math.cos(ny * 8 + 1.4)) * 0.08;
+      n += (Math.sin(nx * 16) * Math.cos(ny * 16)) * 0.04;
 
-      // Curva Hermite smoothstep para transição macia das bordas
-      const t = Math.max(0, Math.min(1, (n - 0.02) * 2.2));
-      const smoothDensity = t * t * (3.0 - 2.0 * t);
+      // Forma billow suave: eleva os topos e suaviza as bases dos aglomerados cumulus
+      const billow = Math.abs(n);
+      const density = THREE.MathUtils.smoothstep(billow, 0.14, 0.65);
 
-      // Modelagem de iluminação volumétrica:
-      // Cristas superiores e bordas voltadas para a luz solar recebem realce pêssego/rosado quente (Imagem 1)
-      // Centro e base das nuvens recebem sombreamento lilás/púrpura suave
-      const verticalFactor = (1.0 - y / 512);
-      const sunlitRim = Math.min(1.0, Math.max(0.0, smoothDensity * 0.65 + verticalFactor * 0.35 + Math.sin(nx * 3) * 0.1));
+      if (density <= 0.005) {
+        data[idx] = 255;
+        data[idx + 1] = 255;
+        data[idx + 2] = 255;
+        data[idx + 3] = 0;
+        continue;
+      }
 
-      // Cores:
-      // Cristas iluminadas: #fde4d0 (Pêssego / Rosa suave quente)
-      // Núcleo denso: #fcfdfe (Branco suave)
-      // Sombras inferiores: #827290 (Lilás / Ardósia púrpura)
-      const r = Math.floor(THREE.MathUtils.lerp(THREE.MathUtils.lerp(130, 252, smoothDensity), 254, sunlitRim * 0.6));
-      const g = Math.floor(THREE.MathUtils.lerp(THREE.MathUtils.lerp(114, 250, smoothDensity), 232, sunlitRim * 0.5));
-      const b = Math.floor(THREE.MathUtils.lerp(THREE.MathUtils.lerp(144, 255, smoothDensity), 216, sunlitRim * 0.4));
-      const a = Math.floor(smoothDensity * 235);
+      // Shading volumétrico da nuvem:
+      // Cristas superiores e núcleo denso: branco radiante com calor suave
+      // Base e sombras internas: suave cinza-lavanda / ardósia suave
+      const lightFactor = THREE.MathUtils.smoothstep(density, 0.20, 0.95);
+      const r = Math.floor(THREE.MathUtils.lerp(185, 255, lightFactor));
+      const g = Math.floor(THREE.MathUtils.lerp(195, 255, lightFactor));
+      const b = Math.floor(THREE.MathUtils.lerp(215, 255, lightFactor));
+      const a = Math.floor(density * 240);
 
       data[idx] = r;
       data[idx + 1] = g;
@@ -60,7 +61,7 @@ function generateCloudTexture() {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(2.2, 2.2);
+  texture.repeat.set(2.0, 2.0);
   return texture;
 }
 
@@ -124,7 +125,7 @@ function generateMoonTexture() {
   return tex;
 }
 
-// Textura do Sol com centro luminoso quente
+// Textura do Sol estilizada do Minecraft com anéis quentes e borda dourada
 function generateSunTexture() {
   if (typeof document === 'undefined') return null;
   const canvas = document.createElement('canvas');
@@ -134,13 +135,25 @@ function generateSunTexture() {
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  ctx.fillStyle = '#fffdf2';
-  ctx.fillRect(4, 4, 56, 56);
-  ctx.fillStyle = '#fff4c2';
-  ctx.fillRect(0, 0, 64, 4);
-  ctx.fillRect(0, 60, 64, 4);
-  ctx.fillRect(0, 0, 4, 64);
-  ctx.fillRect(60, 0, 4, 64);
+  // 1. Moldura externa âmbar/dourada quente característica do Minecraft
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillRect(0, 0, 64, 64);
+
+  // 2. Halo interno dourado radiante
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(2, 2, 60, 60);
+
+  // 3. Disco principal âmbar claro
+  ctx.fillStyle = '#fef08a';
+  ctx.fillRect(5, 5, 54, 54);
+
+  // 4. Corpo central quente do sol (ivory / creme radiante, preservando saturação sem estourar em branco puro)
+  ctx.fillStyle = '#fffbeb';
+  ctx.fillRect(8, 8, 48, 48);
+
+  // 5. Núcleo central brilhante
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(18, 18, 28, 28);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.magFilter = THREE.NearestFilter;
@@ -158,9 +171,10 @@ function generateRadialGlowTexture(coreColor, haloColor, outerColor = 'rgba(0, 0
   if (!ctx || !ctx.createRadialGradient) return null;
 
   const rad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-  rad.addColorStop(0, coreColor);
-  rad.addColorStop(0.35, haloColor);
-  rad.addColorStop(1, outerColor);
+  rad.addColorStop(0.0, coreColor);
+  rad.addColorStop(0.28, haloColor);
+  rad.addColorStop(0.65, outerColor);
+  rad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = rad;
   ctx.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(canvas);
@@ -236,15 +250,15 @@ class WorldTime {
     this.skyMaterial = new THREE.ShaderMaterial({
       uniforms: {
         topColor: { value: new THREE.Color(0x1d62c9) },
-        horizonColor: { value: new THREE.Color(0xd2e8ff) },
-        sunGlowColor: { value: new THREE.Color(0xfff3d6) },
+        horizonColor: { value: new THREE.Color(0x8ec2ec) },
+        sunGlowColor: { value: new THREE.Color(0xffeaad) },
         sunPosition: { value: new THREE.Vector3(0, 1, 0) },
         sunGlowIntensity: { value: 0.55 },
-        moonGlowColor: { value: new THREE.Color(0x00c0f0) },
+        moonGlowColor: { value: new THREE.Color(0x00caff) },
         moonPosition: { value: new THREE.Vector3(0, -1, 0) },
         moonGlowIntensity: { value: 0.0 },
         offset: { value: 0.04 },
-        exponent: { value: 0.52 }
+        exponent: { value: 0.85 }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
@@ -273,19 +287,19 @@ class WorldTime {
           float factor = pow(h, exponent);
           vec3 sky = mix(horizonColor, topColor, factor);
 
-          // 1. Difusão Solar Atmosférica (Dia / Entardecer / Alvorada - Imagem 1)
+          // 1. Difusão Solar Atmosférica Suave (sem estourar o azul do céu)
           if (sunGlowIntensity > 0.005) {
             float sunDot = max(0.0, dot(dir, normalize(sunPosition)));
-            float sunCorona = pow(sunDot, 14.0) * sunGlowIntensity * 1.8;
-            float sunAtmosphere = pow(sunDot, 3.5) * sunGlowIntensity * 0.65 * (1.0 - h * 0.45);
+            float sunCorona = pow(sunDot, 36.0) * sunGlowIntensity * 0.45;
+            float sunAtmosphere = pow(sunDot, 6.0) * sunGlowIntensity * 0.18 * (1.0 - h * 0.35);
             sky += sunGlowColor * (sunCorona + sunAtmosphere);
           }
 
-          // 2. Difusão Lunar Ciano/Azul Volumétrica (Noite - Imagem 2)
+          // 2. Difusão Lunar Volumétrica Mística (Noite)
           if (moonGlowIntensity > 0.005) {
             float moonDot = max(0.0, dot(dir, normalize(moonPosition)));
-            float moonCorona = pow(moonDot, 18.0) * moonGlowIntensity * 2.5;
-            float moonAtmosphere = pow(moonDot, 4.0) * moonGlowIntensity * 0.95 * (1.0 - h * 0.35);
+            float moonCorona = pow(moonDot, 40.0) * moonGlowIntensity * 0.65;
+            float moonAtmosphere = pow(moonDot, 8.0) * moonGlowIntensity * 0.22 * (1.0 - h * 0.30);
             sky += moonGlowColor * (moonCorona + moonAtmosphere);
           }
 
@@ -300,15 +314,15 @@ class WorldTime {
     this.skyDomeMesh.renderOrder = -100;
     this.celestialGroup.add(this.skyDomeMesh);
 
-    // 1. Sol (Cubo voxel brilhante com centro quente e corona dourada)
-    const sunGeom = new THREE.BoxGeometry(12, 12, 12);
+    // 1. Sol (Cubo voxel estilizado do Minecraft orientado para o observador com bordas quentes)
+    const sunGeom = new THREE.BoxGeometry(13, 13, 2);
     const sunTex = generateSunTexture();
     const sunMat = sunTex ? new THREE.MeshBasicMaterial({ map: sunTex }) : new THREE.MeshBasicMaterial({ color: 0xfff4b8 });
     this.sunMesh = new THREE.Mesh(sunGeom, sunMat);
     this.celestialGroup.add(this.sunMesh);
 
-    // 2. Lua (Cubo voxel estilizado do Minecraft com crateras pixeladas detalhadas e rotação diamante - Imagem 2)
-    const moonGeom = new THREE.BoxGeometry(11, 11, 11);
+    // 2. Lua (Cubo voxel estilizado do Minecraft com crateras pixeladas detalhadas e rotação diamante)
+    const moonGeom = new THREE.BoxGeometry(11, 11, 2);
     const moonTex = generateMoonTexture();
     const moonMat = moonTex ? new THREE.MeshBasicMaterial({ map: moonTex }) : new THREE.MeshBasicMaterial({ color: 0xe6f0fa });
     this.moonMesh = new THREE.Mesh(moonGeom, moonMat);
@@ -316,7 +330,7 @@ class WorldTime {
     this.moonMesh.rotation.x = 0.15;
     this.celestialGroup.add(this.moonMesh);
 
-    // 3. Estrelas cintilantes visíveis à noite (650 pontos discretos e naturais)
+    // 3. Estrelas cintilantes visíveis à noite (650 pontos discretos com depthWrite falso)
     const starGeom = new THREE.BufferGeometry();
     const starPositions = [];
     const starCount = 650;
@@ -339,56 +353,70 @@ class WorldTime {
       color: 0xffffff,
       size: 1.5,
       transparent: true,
-      opacity: 0.0
+      opacity: 0.0,
+      depthWrite: false
     });
     this.starPoints = new THREE.Points(starGeom, this.starMaterial);
+    this.starPoints.visible = false;
     this.celestialGroup.add(this.starPoints);
 
-    // 4. Halo e Raios Solares Volumétricos (Ultra Shaders - Imagem 1)
-    const sunGlowTex = generateRadialGlowTexture('rgba(255, 255, 235, 0.95)', 'rgba(255, 205, 120, 0.40)');
+    // 4. Halo Solar Suave e Integrado (Ultra Shaders)
+    const sunGlowTex = generateRadialGlowTexture('rgba(255, 235, 175, 0.55)', 'rgba(255, 195, 110, 0.20)', 'rgba(255, 160, 60, 0.0)');
     if (sunGlowTex) {
-      const glowGeom = new THREE.PlaneGeometry(80, 80);
+      const glowGeom = new THREE.PlaneGeometry(38, 38);
       this.sunGlowMat = new THREE.MeshBasicMaterial({
         map: sunGlowTex,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
+        opacity: 0.45,
         side: THREE.DoubleSide
       });
       this.sunGlowMesh = new THREE.Mesh(glowGeom, this.sunGlowMat);
       this.celestialGroup.add(this.sunGlowMesh);
     }
 
-    // Raios solares atmosféricos
+    // Raios solares atmosféricos suaves e radiais sem planos cortantes
     this.sunBeamsGroup = new THREE.Group();
     if (typeof document !== 'undefined') {
       const bCanvas = document.createElement('canvas');
       if (bCanvas && bCanvas.getContext) {
-        bCanvas.width = 32;
+        bCanvas.width = 64;
         bCanvas.height = 128;
         const bctx = bCanvas.getContext('2d');
-        if (bctx && bctx.createLinearGradient) {
-          const bgrad = bctx.createLinearGradient(0, 0, 0, 128);
-          bgrad.addColorStop(0, 'rgba(255, 235, 160, 0.45)');
-          bgrad.addColorStop(0.5, 'rgba(255, 210, 110, 0.18)');
-          bgrad.addColorStop(1, 'rgba(255, 210, 110, 0.0)');
-          bctx.fillStyle = bgrad;
-          bctx.fillRect(0, 0, 32, 128);
+        if (bctx && bctx.createImageData) {
+          const bImg = bctx.createImageData(64, 128);
+          const bData = bImg.data;
+          for (let y = 0; y < 128; y++) {
+            const v = y / 128.0;
+            const lengthFade = Math.pow(Math.max(0.0, 1.0 - v), 1.6);
+            for (let x = 0; x < 64; x++) {
+              const u = (x - 32) / 32.0;
+              const widthFade = Math.max(0.0, 1.0 - u * u);
+              const alpha = Math.floor(lengthFade * widthFade * 80);
+              const idx = (x + y * 64) * 4;
+              bData[idx] = 255;
+              bData[idx + 1] = Math.floor(THREE.MathUtils.lerp(235, 190, v));
+              bData[idx + 2] = Math.floor(THREE.MathUtils.lerp(160, 80, v));
+              bData[idx + 3] = alpha;
+            }
+          }
+          bctx.putImageData(bImg, 0, 0);
           const beamTex = new THREE.CanvasTexture(bCanvas);
-          const beamGeom = new THREE.PlaneGeometry(24, 150);
+          const beamGeom = new THREE.PlaneGeometry(16, 70);
 
-          for (let i = 0; i < 8; i++) {
+          for (let i = 0; i < 6; i++) {
             const bMat = new THREE.MeshBasicMaterial({
               map: beamTex,
               transparent: true,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
-              opacity: 0.14,
+              opacity: 0.045,
               side: THREE.DoubleSide
             });
             const beamMesh = new THREE.Mesh(beamGeom, bMat);
-            beamMesh.rotation.z = (i / 8) * Math.PI * 2;
-            beamMesh.position.set(0, -60, 0);
+            beamMesh.rotation.z = (i / 6) * Math.PI * 2;
+            beamMesh.position.set(0, 0, 0);
             this.sunBeamsGroup.add(beamMesh);
           }
         }
@@ -396,51 +424,63 @@ class WorldTime {
     }
     this.celestialGroup.add(this.sunBeamsGroup);
 
-    // 5. Halo Lunar Ciano/Turquesa Radiante e Raios de Luar (Ultra Shaders - Imagem 2)
-    const moonGlowTex = generateRadialGlowTexture('rgba(0, 220, 255, 0.95)', 'rgba(3, 130, 215, 0.45)', 'rgba(2, 60, 130, 0.0)');
+    // 5. Halo Lunar Ciano Místico e Raios de Luar (Ultra Shaders)
+    const moonGlowTex = generateRadialGlowTexture('rgba(180, 235, 255, 0.60)', 'rgba(20, 160, 225, 0.20)', 'rgba(2, 60, 130, 0.0)');
     if (moonGlowTex) {
-      const mGlowGeom = new THREE.PlaneGeometry(95, 95);
+      const mGlowGeom = new THREE.PlaneGeometry(38, 38);
       this.moonGlowMat = new THREE.MeshBasicMaterial({
         map: moonGlowTex,
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
+        opacity: 0.40,
         side: THREE.DoubleSide
       });
       this.moonGlowMesh = new THREE.Mesh(mGlowGeom, this.moonGlowMat);
       this.celestialGroup.add(this.moonGlowMesh);
     }
 
-    // Raios de luar volumétricos atmosféricos (Imagem 2)
+    // Raios de luar suaves e radiais
     this.moonBeamsGroup = new THREE.Group();
     if (typeof document !== 'undefined') {
       const mbCanvas = document.createElement('canvas');
       if (mbCanvas && mbCanvas.getContext) {
-        mbCanvas.width = 32;
+        mbCanvas.width = 64;
         mbCanvas.height = 128;
         const mbctx = mbCanvas.getContext('2d');
-        if (mbctx && mbctx.createLinearGradient) {
-          const mbgrad = mbctx.createLinearGradient(0, 0, 0, 128);
-          mbgrad.addColorStop(0, 'rgba(0, 210, 255, 0.35)');
-          mbgrad.addColorStop(0.5, 'rgba(3, 110, 190, 0.14)');
-          mbgrad.addColorStop(1, 'rgba(2, 60, 130, 0.0)');
-          mbctx.fillStyle = mbgrad;
-          mbctx.fillRect(0, 0, 32, 128);
+        if (mbctx && mbctx.createImageData) {
+          const mbImg = mbctx.createImageData(64, 128);
+          const mbData = mbImg.data;
+          for (let y = 0; y < 128; y++) {
+            const v = y / 128.0;
+            const lengthFade = Math.pow(Math.max(0.0, 1.0 - v), 1.6);
+            for (let x = 0; x < 64; x++) {
+              const u = (x - 32) / 32.0;
+              const widthFade = Math.max(0.0, 1.0 - u * u);
+              const alpha = Math.floor(lengthFade * widthFade * 75);
+              const idx = (x + y * 64) * 4;
+              mbData[idx] = 160;
+              mbData[idx + 1] = Math.floor(THREE.MathUtils.lerp(225, 175, v));
+              mbData[idx + 2] = 255;
+              mbData[idx + 3] = alpha;
+            }
+          }
+          mbctx.putImageData(mbImg, 0, 0);
           const mBeamTex = new THREE.CanvasTexture(mbCanvas);
-          const mBeamGeom = new THREE.PlaneGeometry(28, 160);
+          const mBeamGeom = new THREE.PlaneGeometry(16, 75);
 
-          for (let i = 0; i < 8; i++) {
+          for (let i = 0; i < 6; i++) {
             const mbMat = new THREE.MeshBasicMaterial({
               map: mBeamTex,
               transparent: true,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
-              opacity: 0.16,
+              opacity: 0.035,
               side: THREE.DoubleSide
             });
             const mBeamMesh = new THREE.Mesh(mBeamGeom, mbMat);
-            mBeamMesh.rotation.z = (i / 8) * Math.PI * 2;
-            mBeamMesh.position.set(0, -60, 0);
+            mBeamMesh.rotation.z = (i / 6) * Math.PI * 2;
+            mBeamMesh.position.set(0, 0, 0);
             this.moonBeamsGroup.add(mBeamMesh);
           }
         }
@@ -448,19 +488,19 @@ class WorldTime {
     }
     this.celestialGroup.add(this.moonBeamsGroup);
 
-    // 6. Dossel de Nuvens Cumulus Volumétricas com Curvatura no Horizonte (Ultra Shaders)
+    // 6. Dossel de Nuvens Cumulus Volumétricas com Curvatura Natural no Horizonte
     const cloudTex = generateCloudTexture();
     if (cloudTex) {
       this.cloudTexture = cloudTex;
 
-      // Geometria subdividida com curvatura suave em direção ao horizonte
-      const cloudGeom = new THREE.PlaneGeometry(1600, 1600, 24, 24);
+      // Geometria subdividida suave (48x48) com curvatura natural acompanhando o horizonte
+      const cloudGeom = new THREE.PlaneGeometry(1800, 1800, 48, 48);
       const posAttr = cloudGeom.attributes.position;
       for (let i = 0; i < posAttr.count; i++) {
         const vx = posAttr.getX(i);
         const vy = posAttr.getY(i);
         const r = Math.hypot(vx, vy);
-        const drop = Math.pow(r / 800, 2.0) * 38;
+        const drop = Math.pow(Math.min(1.0, r / 900), 2.2) * 45;
         posAttr.setZ(i, -drop);
       }
       cloudGeom.computeVertexNormals();
@@ -468,7 +508,7 @@ class WorldTime {
       this.cloudMat = new THREE.MeshBasicMaterial({
         map: cloudTex,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.94,
         depthWrite: false,
         side: THREE.DoubleSide
       });
@@ -477,20 +517,20 @@ class WorldTime {
       this.cloudMesh.position.set(0, 115, 0);
       this.game.scene.add(this.cloudMesh);
 
-      // Camada secundária superior para paralaxe e profundidade
+      // Camada secundária superior sutil para paralaxe e profundidade atmosférica
       const cloudTex2 = cloudTex.clone();
-      cloudTex2.repeat.set(3.2, 3.2);
+      cloudTex2.repeat.set(1.5, 1.5);
       this.cloudTexture2 = cloudTex2;
       this.cloudMat2 = new THREE.MeshBasicMaterial({
         map: cloudTex2,
         transparent: true,
-        opacity: 0.65,
+        opacity: 0.22,
         depthWrite: false,
         side: THREE.DoubleSide
       });
       this.cloudMesh2 = new THREE.Mesh(cloudGeom, this.cloudMat2);
       this.cloudMesh2.rotation.x = Math.PI / 2;
-      this.cloudMesh2.position.set(0, 126, 0);
+      this.cloudMesh2.position.set(0, 138, 0);
       this.game.scene.add(this.cloudMesh2);
     }
 
@@ -531,12 +571,12 @@ class WorldTime {
 
     // Deslocamento contínuo das nuvens com o vento em diferentes velocidades (paralaxe)
     if (this.cloudTexture) {
-      this.cloudTexture.offset.x += dt * 0.0012;
-      this.cloudTexture.offset.y += dt * 0.0006;
+      this.cloudTexture.offset.x += dt * 0.0008;
+      this.cloudTexture.offset.y += dt * 0.0004;
     }
     if (this.cloudTexture2) {
-      this.cloudTexture2.offset.x += dt * 0.0016;
-      this.cloudTexture2.offset.y += dt * 0.0008;
+      this.cloudTexture2.offset.x += dt * 0.0005;
+      this.cloudTexture2.offset.y += dt * 0.0002;
     }
     if (this.cloudMesh && this.game.player) {
       this.cloudMesh.position.x = this.game.player.position.x;
@@ -545,14 +585,6 @@ class WorldTime {
     if (this.cloudMesh2 && this.game.player) {
       this.cloudMesh2.position.x = this.game.player.position.x;
       this.cloudMesh2.position.z = this.game.player.position.z;
-    }
-
-    // Rotação suave dos raios solares e lunares atmosféricos
-    if (this.sunBeamsGroup && this.sunBeamsGroup.visible) {
-      this.sunBeamsGroup.rotation.z += dt * 0.03;
-    }
-    if (this.moonBeamsGroup && this.moonBeamsGroup.visible) {
-      this.moonBeamsGroup.rotation.z += dt * 0.02;
     }
 
     this.updateLightingAndSky();
@@ -584,22 +616,25 @@ class WorldTime {
     if (this.sunMesh) {
       this.sunMesh.position.set(sunX, sunY, sunZ);
       this.sunMesh.visible = sunY > -10;
+      this.sunMesh.lookAt(px, py, pz);
     }
 
     if (this.moonMesh) {
-      // Lua diametralmente oposta ao sol
+      // Lua diametralmente oposta ao sol orientada com diamante Minecraft
       this.moonMesh.position.set(-sunX, -sunY, -sunZ);
       this.moonMesh.visible = -sunY > -10;
+      this.moonMesh.lookAt(px, py, pz);
+      this.moonMesh.rotateZ(0.38);
     }
 
     const isUltra = !!(this.game && (this.game.graphicsPreset === 'ultra' || this.game.graphicsQuality === 'ultra'));
 
     // Cores celestes atmosféricas
     let zenithColor = new THREE.Color(0x1d62c9);
-    let horizonColor = new THREE.Color(0xd5e7fa);
-    let sunLightColor = new THREE.Color(0xfffaea);
-    let ambientColor = new THREE.Color(0xeef5ff);
-    let sunGlowColor = new THREE.Color(0xfff2cf);
+    let horizonColor = new THREE.Color(0x8ec2ec);
+    let sunLightColor = new THREE.Color(0xfff9ea);
+    let ambientColor = new THREE.Color(0xebf3fc);
+    let sunGlowColor = new THREE.Color(0xffeaad);
     let sunGlowIntensity = 0.55;
     let moonGlowColor = new THREE.Color(0x00caff);
     let moonGlowIntensity = 0.0;
@@ -609,12 +644,12 @@ class WorldTime {
 
     // Definição das fases de transição suave do ciclo dia/noite
     if (t >= 120 && t < 780) {
-      // PLENO DIA: Céu azul natural cinematográfico, clareando no horizonte (Imagem 1)
+      // PLENO DIA: Céu azul natural equilibrado com horizonte límpido
       zenithColor.setHex(isUltra ? 0x1d62c9 : 0x2563eb);
-      horizonColor.setHex(isUltra ? 0xd5e7fa : 0xc6defe);
-      sunLightColor.setHex(isUltra ? 0xfffaea : 0xfff7e6);
-      ambientColor.setHex(isUltra ? 0xeef5ff : 0xffffff);
-      sunGlowColor.setHex(0xfff2cf);
+      horizonColor.setHex(isUltra ? 0x8ec2ec : 0x98c6ea);
+      sunLightColor.setHex(isUltra ? 0xfff9ea : 0xfff7e6);
+      ambientColor.setHex(isUltra ? 0xebf3fc : 0xffffff);
+      sunGlowColor.setHex(0xffeaad);
       sunGlowIntensity = isUltra ? 0.55 : 0.25;
       moonGlowIntensity = 0.0;
       sunIntensity = isUltra ? 1.08 : 0.95;
@@ -628,19 +663,19 @@ class WorldTime {
       const sunsetZenith = isUltra ? new THREE.Color(0x243b6c) : new THREE.Color(0x2b4280);
       zenithColor.lerpColors(dayZenith, sunsetZenith, factor);
 
-      const dayHoriz = isUltra ? new THREE.Color(0xd5e7fa) : new THREE.Color(0xc6defe);
+      const dayHoriz = isUltra ? new THREE.Color(0x8ec2ec) : new THREE.Color(0x98c6ea);
       const sunsetHoriz = isUltra ? new THREE.Color(0xfb8c38) : new THREE.Color(0xf97316);
       horizonColor.lerpColors(dayHoriz, sunsetHoriz, factor);
 
-      const daySun = isUltra ? new THREE.Color(0xfffaea) : new THREE.Color(0xfff7e6);
+      const daySun = isUltra ? new THREE.Color(0xfff9ea) : new THREE.Color(0xfff7e6);
       const sunsetSun = isUltra ? new THREE.Color(0xff7a29) : new THREE.Color(0xff8833);
       sunLightColor.lerpColors(daySun, sunsetSun, factor);
 
-      const dayAmb = isUltra ? new THREE.Color(0xeef5ff) : new THREE.Color(0xffffff);
+      const dayAmb = isUltra ? new THREE.Color(0xebf3fc) : new THREE.Color(0xffffff);
       const sunsetAmb = isUltra ? new THREE.Color(0xffaf82) : new THREE.Color(0xfca5a5);
       ambientColor.lerpColors(dayAmb, sunsetAmb, factor);
 
-      sunGlowColor.lerpColors(new THREE.Color(0xfff2cf), new THREE.Color(0xff8c20), factor);
+      sunGlowColor.lerpColors(new THREE.Color(0xffeaad), new THREE.Color(0xff8c20), factor);
       sunGlowIntensity = THREE.MathUtils.lerp(0.55, 0.95, factor);
       moonGlowIntensity = 0.0;
       sunIntensity = THREE.MathUtils.lerp(isUltra ? 1.08 : 0.95, 0.52, factor);
@@ -721,18 +756,18 @@ class WorldTime {
       zenithColor.lerpColors(dawnZenith, dayZenith, factor);
 
       const dawnHoriz = isUltra ? new THREE.Color(0xf59e0b) : new THREE.Color(0xec4899);
-      const dayHoriz = isUltra ? new THREE.Color(0xd5e7fa) : new THREE.Color(0xc6defe);
+      const dayHoriz = isUltra ? new THREE.Color(0x8ec2ec) : new THREE.Color(0x98c6ea);
       horizonColor.lerpColors(dawnHoriz, dayHoriz, factor);
 
       const dawnSun = isUltra ? new THREE.Color(0xffa726) : new THREE.Color(0xff8844);
-      const daySun = isUltra ? new THREE.Color(0xfffaea) : new THREE.Color(0xfff7e6);
+      const daySun = isUltra ? new THREE.Color(0xfff9ea) : new THREE.Color(0xfff7e6);
       sunLightColor.lerpColors(dawnSun, daySun, factor);
 
       const dawnAmb = isUltra ? new THREE.Color(0xd97736) : new THREE.Color(0xb37050);
-      const dayAmb = isUltra ? new THREE.Color(0xeef5ff) : new THREE.Color(0xffffff);
+      const dayAmb = isUltra ? new THREE.Color(0xebf3fc) : new THREE.Color(0xffffff);
       ambientColor.lerpColors(dawnAmb, dayAmb, factor);
 
-      sunGlowColor.lerpColors(new THREE.Color(0xffaa44), new THREE.Color(0xfff2cf), factor);
+      sunGlowColor.lerpColors(new THREE.Color(0xffaa44), new THREE.Color(0xffeaad), factor);
       moonGlowIntensity = 0.0;
       sunGlowIntensity = THREE.MathUtils.lerp(0.65, 0.55, factor);
       sunIntensity = THREE.MathUtils.lerp(0.55, isUltra ? 1.08 : 0.95, factor);
@@ -815,12 +850,15 @@ class WorldTime {
       }
     }
 
-    // Estrelas
+    // Estrelas discretas ativas somente quando visíveis (depthWrite desativado)
     if (this.starMaterial) {
       this.starMaterial.opacity = starOpacity;
     }
+    if (this.starPoints) {
+      this.starPoints.visible = (starOpacity > 0.02);
+    }
 
-    // Posiciona e orienta Halo e Raios no Sol e na Lua (orientação para o jogador)
+    // Posiciona e orienta Halo e Raios no Sol e na Lua
     if (this.sunGlowMesh && this.sunMesh) {
       this.sunGlowMesh.position.copy(this.sunMesh.position);
       this.sunGlowMesh.visible = this.sunMesh.visible;
@@ -830,6 +868,7 @@ class WorldTime {
       this.sunBeamsGroup.position.copy(this.sunMesh.position);
       this.sunBeamsGroup.visible = this.sunMesh.visible && isUltra;
       this.sunBeamsGroup.lookAt(px, py, pz);
+      this.sunBeamsGroup.rotateZ(t * 0.02);
     }
     if (this.moonGlowMesh && this.moonMesh) {
       this.moonGlowMesh.position.copy(this.moonMesh.position);
@@ -840,17 +879,18 @@ class WorldTime {
       this.moonBeamsGroup.position.copy(this.moonMesh.position);
       this.moonBeamsGroup.visible = this.moonMesh.visible && isUltra;
       this.moonBeamsGroup.lookAt(px, py, pz);
+      this.moonBeamsGroup.rotateZ(t * 0.015);
     }
 
     // Atualiza cor e iluminação das nuvens conforme o ciclo solar (Inspirado no Complementary Shaders)
     if (this.cloudMat) {
       if (t >= 120 && t < 780) {
-        // Pleno Dia: nuvens cumulus brancas com realces rosados/pêssego suaves (Imagem 1)
+        // Pleno Dia: nuvens cumulus brancas volumétricas
         this.cloudMat.color.setHex(0xffffff);
         this.cloudMat.opacity = isUltra ? 0.94 : 0.70;
         if (this.cloudMat2) {
-          this.cloudMat2.color.setHex(0xf2f7ff);
-          this.cloudMat2.opacity = isUltra ? 0.68 : 0.0;
+          this.cloudMat2.color.setHex(0xf4f8ff);
+          this.cloudMat2.opacity = isUltra ? 0.22 : 0.0;
         }
       } else if (t >= 780 && t < 900) {
         // Pôr do sol: nuvens douradas e alaranjadas
@@ -858,7 +898,7 @@ class WorldTime {
         this.cloudMat.opacity = isUltra ? 0.95 : 0.72;
         if (this.cloudMat2) {
           this.cloudMat2.color.setHex(isUltra ? 0xff9148 : 0xf87171);
-          this.cloudMat2.opacity = isUltra ? 0.72 : 0.0;
+          this.cloudMat2.opacity = isUltra ? 0.25 : 0.0;
         }
       } else if (t >= 900 && t < 1050) {
         // Crepúsculo: violeta/lavanda e púrpura suave
@@ -866,7 +906,7 @@ class WorldTime {
         this.cloudMat.opacity = 0.84;
         if (this.cloudMat2) {
           this.cloudMat2.color.setHex(0x553965);
-          this.cloudMat2.opacity = isUltra ? 0.62 : 0.0;
+          this.cloudMat2.opacity = isUltra ? 0.20 : 0.0;
         }
       } else if (t >= 1050 && t < 1650) {
         // Noite: ardósia prateado escuro iluminado pela lua
@@ -874,7 +914,7 @@ class WorldTime {
         this.cloudMat.opacity = 0.72;
         if (this.cloudMat2) {
           this.cloudMat2.color.setHex(0x0c1727);
-          this.cloudMat2.opacity = isUltra ? 0.50 : 0.0;
+          this.cloudMat2.opacity = isUltra ? 0.18 : 0.0;
         }
       } else {
         // Alvorada: pêssego, dourado e blush suave
@@ -882,7 +922,7 @@ class WorldTime {
         this.cloudMat.opacity = 0.88;
         if (this.cloudMat2) {
           this.cloudMat2.color.setHex(0xffa660);
-          this.cloudMat2.opacity = isUltra ? 0.64 : 0.0;
+          this.cloudMat2.opacity = isUltra ? 0.22 : 0.0;
         }
       }
     }

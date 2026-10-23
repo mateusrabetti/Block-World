@@ -396,7 +396,7 @@ class Player {
 
     // 5. Culling de Chunks por distância do jogador configurável (Opções Gráficas)
     if (this.world) {
-      const renderDist = (window.game && window.game.renderDistance) ? window.game.renderDistance : 5;
+      const renderDist = (window.game && window.game.renderDistance) ? window.game.renderDistance : 10;
       this.world.updateChunkVisibility(this.position, renderDist);
     }
 
